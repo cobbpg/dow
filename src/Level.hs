@@ -1,5 +1,6 @@
 module Level
        ( Level(..)
+       , Direction(..)
        , parseLevel
        , turnRight
        , turnBack
@@ -65,23 +66,3 @@ makeMoves lines = concat . odds $ zipWith3 f lines (tail lines) (tail (tail line
 
 odds (x:_:xs) = x : odds xs
 odds xs = xs
-
-testLevel =
-  [""
-  ,"\"01\""
-  ,"+-----+---------+-----+"
-  ,"|     |         |     |"
-  ,"| +-+ + +-+ +-+ + +-+ |"
-  ,"| |                 | |"
-  ,"+ + + +---+ +---+ + + +"
-  ,"<   |     | |     |   >"
-  ,"+   | +-+ + + +-+ |   +"
-  ,"|   | |         | |   |"
-  ,"| +-+ + +-+ +-+ + +-+ |"
-  ,"| |       | |       | |"
-  ,"| + +-+ + + + + +-+ + |"
-  ,"|       |     |       |"
-  ,"+*+-----+-----+-----+*+"
-  ,""
-  ,"something else..."
-  ]
