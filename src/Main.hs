@@ -11,6 +11,7 @@ import Graphics.Rendering.OpenGL
 import Level
 import Render
 import Sprites
+import Text
 
 main = do
   initialize
@@ -19,6 +20,7 @@ main = do
 
   levels <- loadLevels "levels.txt"
   sprites <- loadSprites "sprites.txt"
+  displayText <- uncurry displayString <$> loadCharset "charset.txt"
   let level = levels !! 2
 
   aspectRatio <- newIORef (getAspectRatio level)
@@ -34,7 +36,7 @@ main = do
   textureFunction $= Combine4
 
   fix $ \loop -> do
-    render level sprites
+    render displayText level sprites
     stop <- readIORef closed
     when (not stop) loop
 

@@ -16,7 +16,7 @@ solid = 1
 getAspectRatio level = fromIntegral lh / fromIntegral lw + hudHeight
   where (lw,lh) = levelSize level
 
-render level sprites = do
+render displayText level sprites = do
   let (lw,lh) = levelSize level
       height = fromIntegral lh / fromIntegral lw
       magn = 1 / fromIntegral lw
@@ -38,6 +38,8 @@ render level sprites = do
       drawSprite (head (snd s)) (0.1+i) 1.1 0.8 0.8 East
       drawSprite (head (snd s)) (0.1+i) 2.1 0.8 0.8 South
       drawSprite (head (snd s)) (0.1+i) 3.1 0.8 0.8 West
+
+  displayText 0.03 0.05 0.003 "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG 0123456789"
 
   flush
   swapBuffers
@@ -73,16 +75,15 @@ drawSprite tid x y sx sy dir = do
         West  -> (0,1,1,1,1,0,0,0)
   textureBinding Texture2D $= Just tid
   renderPrimitive Quads $ do
-    texCoord $ texCoord2 u1 v1
-    vertex $ vertex3 x y 0
-    texCoord $ texCoord2 u2 v2
-    vertex $ vertex3 (x+sx) y 0
-    texCoord $ texCoord2 u3 v3
-    vertex $ vertex3 (x+sx) (y+sy) 0
-    texCoord $ texCoord2 u4 v4
-    vertex $ vertex3 x (y+sy) 0
+    texCoord2 u1 v1
+    vertex3 x y 0
+    texCoord2 u2 v2
+    vertex3 (x+sx) y 0
+    texCoord2 u3 v3
+    vertex3 (x+sx) (y+sy) 0
+    texCoord2 u4 v4
+    vertex3 x (y+sy) 0
 
-vertex3 x y z = Vertex3 x y (z :: GLfloat)
-vector3 x y z = Vector3 x y (z :: GLfloat)
-normal3 x y z = Normal3 x y (z :: GLfloat)
-texCoord2 x y = TexCoord2 x (y :: GLfloat)
+vertex3 x y z = vertex $ Vertex3 x y (z :: GLfloat)
+
+texCoord2 x y = texCoord $ TexCoord2 x (y :: GLfloat)

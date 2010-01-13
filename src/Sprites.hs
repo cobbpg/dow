@@ -1,4 +1,7 @@
-module Sprites where
+module Sprites
+       ( parseSprites
+       , explodeMatrix
+       ) where
 
 import Control.Applicative
 import Control.Monad.Fix
@@ -9,6 +12,7 @@ import Foreign.Marshal
 import Foreign.Ptr
 import Graphics.Rendering.OpenGL
 
+parseSprites :: [String] -> IO [(String, [TextureObject])]
 parseSprites dat = do
   let (coldat,sprdat) = span (\l -> not (null l) && (head l /= '[')) dat
       colmap :: Array Char [Word8]
