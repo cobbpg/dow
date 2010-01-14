@@ -10,6 +10,8 @@ createTexture width height fill = allocaArray (width*height*4) $ \tex -> do
   fill tex
   [tid] <- genObjectNames 1
   textureBinding Texture2D $= Just tid
+  textureWrapMode Texture2D S $= (Mirrored,Clamp)
+  textureWrapMode Texture2D T $= (Mirrored,Clamp)
   build2DMipmaps Texture2D RGBA' (fromIntegral width) (fromIntegral height) (PixelData RGBA UnsignedByte tex)
   return tid
 

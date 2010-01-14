@@ -6,6 +6,8 @@ import Data.IORef
 import Graphics.UI.GLFW
 import Graphics.Rendering.OpenGL
 
+import Actor as A
+import Game
 import GraphUtils
 import Level
 
@@ -17,7 +19,7 @@ solid = 1
 getAspectRatio level = fromIntegral lh / fromIntegral lw + hudHeight
   where (lw,lh) = levelSize level
 
-render displayText level sprites = do
+render displayText level actors = do
   let (lw,lh) = levelSize level
       height = fromIntegral lh / fromIntegral lw
       magn = 1 / fromIntegral lw
@@ -30,17 +32,10 @@ render displayText level sprites = do
     translate $ Vector3 0 hudHeight (0 :: GLfloat)
     scale magn magn (1 :: GLfloat)
 
-    texture Texture2D $= Disabled
     renderLevel level
-    texture Texture2D $= Enabled
-    color $ Color4 1 1 1 solid
-    forM_ (zip sprites [0..]) $ \(s,i) -> do
-      drawSprite (head (snd s)) (0.1+i) 0.1 0.8 0.8 North
-      drawSprite (head (snd s)) (0.1+i) 1.1 0.8 0.8 East
-      drawSprite (head (snd s)) (0.1+i) 2.1 0.8 0.8 South
-      drawSprite (head (snd s)) (0.1+i) 3.1 0.8 0.8 West
+    renderActors actors
 
-  displayText 0.03 0.05 0.003 "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG 0123456789"
+  displayText 0.03 0.03 0.0028 "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG"
 
   flush
   swapBuffers
@@ -49,6 +44,7 @@ renderLevel level = do
   let (lw,lh) = levelSize level
       height = fromIntegral lh / fromIntegral lw
 
+  texture Texture2D $= Disabled
   color $ Color4 0.2 0.5 1 solid
   forM_ (assocs (legalMoves level)) $ \((y,x),ms) -> do
     let xc = fromIntegral x
@@ -57,6 +53,15 @@ renderLevel level = do
     unless (South `elem` ms) $ drawRectangle xc yc 1 0.05
     unless (East `elem` ms) $ drawRectangle (xc+0.95) yc 0.05 1
     unless (West `elem` ms) $ drawRectangle xc yc 0.05 1
+
+renderActors as = do
+  texture Texture2D $= Enabled
+  color $ Color4 1 1 1 solid
+  forM_ as $ \a -> do
+    let V x y = A.position a
+        x' = fromIntegral x / fromIntegral fieldSize
+        y' = fromIntegral y / fromIntegral fieldSize
+    drawSprite (head (animation a)) (0.1+x') (0.1+y') 0.8 0.8 (facing a)
 
 renderHud height = do
   texture Texture2D $= Disabled

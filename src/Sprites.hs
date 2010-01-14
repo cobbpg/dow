@@ -1,5 +1,6 @@
 module Sprites
-       ( parseSprites
+       ( SpriteStore
+       , parseSprites
        , explodeMatrix
        ) where
 
@@ -14,7 +15,9 @@ import Graphics.Rendering.OpenGL
 
 import GraphUtils
 
-parseSprites :: [String] -> IO [(String, [TextureObject])]
+type SpriteStore = [(String, [TextureObject])]
+
+parseSprites :: [String] -> IO SpriteStore
 parseSprites dat = do
   let (coldat,sprdat) = span (\l -> not (null l) && (head l /= '[')) dat
       colmap :: Array Char [Word8]
