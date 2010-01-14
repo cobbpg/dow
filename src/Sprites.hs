@@ -12,6 +12,8 @@ import Foreign.Marshal
 import Foreign.Ptr
 import Graphics.Rendering.OpenGL
 
+import GraphUtils
+
 parseSprites :: [String] -> IO [(String, [TextureObject])]
 parseSprites dat = do
   let (coldat,sprdat) = span (\l -> not (null l) && (head l /= '[')) dat
@@ -55,13 +57,5 @@ createSprite colmap dat = do
         spw = length (head spdat')
         sph = length spdat'
 
-    allocaArray (spw*sph*4) $ \tex -> do
-      pokeArray tex $ [comp | lin <- spdat', pix <- lin, comp <- colmap ! pix]
-      [tid] <- genObjectNames 1
-      textureBinding Texture2D $= Just tid
-      build2DMipmaps Texture2D RGBA' (fromIntegral spw) (fromIntegral sph) (PixelData RGBA UnsignedByte tex)
-      return (Just (tid,dat''))
-
-explodeList n = concatMap (replicate n)
-
-explodeMatrix n = map (explodeList n) . explodeList n
+    tid <- createTexture spw sph $ flip pokeArray [comp | lin <- spdat', pix <- lin, comp <- colmap ! pix]
+    return (Just (tid,dat''))

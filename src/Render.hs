@@ -6,6 +6,7 @@ import Data.IORef
 import Graphics.UI.GLFW
 import Graphics.Rendering.OpenGL
 
+import GraphUtils
 import Level
 
 hudHeight = 0.2
@@ -83,7 +84,3 @@ drawSprite tid x y sx sy dir = do
     vertex3 (x+sx) (y+sy) 0
     texCoord2 u4 v4
     vertex3 x (y+sy) 0
-
-vertex3 x y z = vertex $ Vertex3 x y (z :: GLfloat)
-
-texCoord2 x y = texCoord $ TexCoord2 x (y :: GLfloat)

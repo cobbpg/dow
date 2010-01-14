@@ -12,7 +12,7 @@ import Foreign.Marshal
 import Foreign.Ptr
 import Graphics.Rendering.OpenGL
 
-import Sprites
+import GraphUtils
 
 loadCharset file = do
   dat <- lines <$> readFile file
@@ -20,17 +20,15 @@ loadCharset file = do
       cpos = map (\n -> (n `mod` 8,n `div` 8)) [0..]
       cdat = array (' ','Z') (zip (map fst cs) cpos)
 
-  allocaArray (256*256*4) $ \tex -> do
-    pokeArray tex $ replicate (256*256*4) 0
+      mkpix '#' = [255,255,255,255]
+      mkpix _   = [255,255,255,0]
+
+  tid <- createTexture 256 256 $ \tex -> do
+    pokeArray tex $ concat (replicate (256*256) [255,255,255,0])
     forM_ (zip cs cpos) $ \((_,cimg),(x,y)) -> do
-      let mkpix :: Char -> [Word8]
-          mkpix '#' = [255,255,255,255]
-          mkpix _   = [255,255,255,0]
       forM_ (zip cimg [0..]) $ \(crow,ry) -> pokeArray (advancePtr tex ((x*32+1)*4+(y*32+1+ry)*256*4)) (concatMap mkpix crow)
-    [tid] <- genObjectNames 1
-    textureBinding Texture2D $= Just tid
-    build2DMipmaps Texture2D RGBA' 256 256 (PixelData RGBA UnsignedByte tex)
-    return (tid,cdat)
+
+  return (tid,cdat)
 
 parseChar dat = if null dat' then Nothing else Just ((c,explodeMatrix 3 img),dat'')
   where dat' = dropWhile null dat
@@ -57,7 +55,3 @@ displayString tid cdat x y m s = do
 
   renderPrimitive Quads $ forM_ (zip s [0..]) $ \(c,i) ->
     displayChar c (x+i*8*m)
-
-vertex3 x y z = vertex $ Vertex3 x y (z :: GLfloat)
-
-texCoord2 x y = texCoord $ TexCoord2 x (y :: GLfloat)
