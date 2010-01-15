@@ -25,3 +25,11 @@ collection source isAlive = mdo
   let collWithVals = zip <$> (sequence =<< coll) <*> coll
   collWithVals' <- memo (filter <$> ((.fst) <$> isAlive) <*> collWithVals)
   return $ map fst <$> collWithVals'
+
+switcher gen = mdo
+  trig <- delay True (join (snd <$> pw))
+  ss <- generator (toMaybe <$> trig <*> gen)
+  pw <- undefined --> ss
+  return (join (fst <$> pw))
+
+toMaybe b s = if b then Just <$> s else pure Nothing

@@ -27,11 +27,10 @@ main = do
   levels <- loadLevels "levels.txt"
   sprites <- loadSprites "sprites.txt"
   displayText <- uncurry displayString <$> loadCharset "charset.txt"
-  let level = levels !! 4
-      skins = createSkins sprites
+  let skins = createSkins sprites
       newActor = mkActor skins
 
-  aspectRatio <- newIORef (getAspectRatio level)
+  aspectRatio <- newIORef (getAspectRatio (levels !! 0))
   windowSizeCallback $= resizeWindow aspectRatio
 
   closed <- newIORef False
@@ -44,7 +43,7 @@ main = do
   textureFunction $= Combine4
 
   (keyPress,keySink) <- external (False,False,False,False,False)
-  renderAction <- start $ game (render displayText level) newActor level keyPress
+  renderAction <- start $ game (render displayText) newActor levels keyPress
 
   fix $ \loop -> do
     readKeys keySink
@@ -65,7 +64,11 @@ readKeys sink = do
   kt <- getKey LCTRL
   sink (pr kn, pr ks, pr kw, pr ke, pr kt)
 
-game renderFun newActor level keyPress = mdo
+game renderFun newActor levels keyPress = mdo
+  let startLevel num = playLevel renderFun newActor keyPress (levels !! num)
+  switcher (startLevel <$> (noise `mod` pure (length levels)))
+
+playLevel renderFun newActor keyPress level = mdo
   shoot <- memo =<< edge (keyShoot <$> keyPress)
   player <- transfer2 (newActor YellowWorrior (V 0 0)) (movePlayer level) (keyDir <$> keyPress) shoot
 
@@ -76,7 +79,9 @@ game renderFun newActor level keyPress = mdo
   enemies <- collection enemySource (pure (not . null . animation))
   enemies' <- delay [] enemies
 
-  return $ renderFun <$> liftA2 (:) player enemies <*> bullets
+  return (renderFun level <$> liftA2 (:) player enemies <*> bullets
+         ,null <$> enemies
+         )
 
 mkShot c plr = if c then (:[]) <$> bullet (position plr) (facing plr) else return []
 
