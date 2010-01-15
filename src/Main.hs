@@ -22,7 +22,7 @@ import Utils
 main = do
   initialize
   openWindow (Size 640 480) [DisplayRGBBits 8 8 8, DisplayAlphaBits 8, DisplayDepthBits 24] Window
-  windowTitle $= "Wizard of Wor"
+  windowTitle $= "Dungeons of Wor"
 
   levels <- loadLevels "levels.txt"
   sprites <- loadSprites "sprites.txt"
