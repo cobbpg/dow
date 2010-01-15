@@ -9,7 +9,7 @@ import Data.Char
 import Data.IORef
 import FRP.Elerea.Experimental.Simple
 import Graphics.UI.GLFW
-import Graphics.Rendering.OpenGL
+import Graphics.Rendering.OpenGL hiding (position)
 
 import Actor
 import Game
@@ -17,6 +17,7 @@ import Level
 import Render
 import Sprites
 import Text
+import Utils
 
 main = do
   initialize
@@ -42,7 +43,7 @@ main = do
   textureFilter Texture2D $= ((Linear',Just Nearest),Linear')
   textureFunction $= Combine4
 
-  (keyPress,keySink) <- external (False,False,False,False)
+  (keyPress,keySink) <- external (False,False,False,False,False)
   renderAction <- start $ game (render displayText level) newActor level keyPress
 
   fix $ \loop -> do
@@ -61,30 +62,84 @@ readKeys sink = do
   ks <- getKey DOWN
   kw <- getKey LEFT
   ke <- getKey RIGHT
-  sink (pr kn, pr ks, pr kw, pr ke)
+  kt <- getKey LCTRL
+  sink (pr kn, pr ks, pr kw, pr ke, pr kt)
 
 game renderFun newActor level keyPress = mdo
-  player <- transfer (newActor YellowWorrior (V 0 0)) (movePlayer level) (keyDir <$> keyPress)
-  enemyInputs <- replicateM 6 $ latch East (intDir <$> noise)
-  enemies <- mapM (transfer ((newActor Burwor (V fieldSize 0)) { speed = 4 }) (moveEnemy level)) enemyInputs
-  return $ renderFun <$> sequence (player:enemies)
+  shoot <- memo =<< edge (keyShoot <$> keyPress)
+  player <- transfer2 (newActor YellowWorrior (V 0 0)) (movePlayer level) (keyDir <$> keyPress) shoot
+
+  bulletSource <- generator (mkShot <$> shoot <*> player)
+  bullets <- collection bulletSource (notHitAnything level <$> enemies')
+
+  enemySource <- flip delay (pure []) =<< replicateM 8 (enemy newActor level bullets)
+  enemies <- collection enemySource (pure (not . null . animation))
+  enemies' <- delay [] enemies
+
+  return $ renderFun <$> liftA2 (:) player enemies <*> bullets
+
+mkShot c plr = if c then (:[]) <$> bullet (position plr) (facing plr) else return []
+
+bullet pos dir = stateful pos (+3*dirVec dir)
+
+enemy newActor level bullets = mdo
+  let actorInit = (newActor Burwor (V fieldSize 0)) { speed = 4 }
+  actorInput <- latch East (newDir level <$> noise <*> actor')
+  actor <- transfer2 actorInit (moveEnemy level) actorInput bullets
+  actor' <- delay actorInit actor
+  return actor
+
+notHitAnything lev es pos@(V px py) =
+  (sy <  fieldMid-bs || North `elem` legals) &&
+  (sx <  fieldMid-bs || East  `elem` legals) &&
+  (sy > -fieldMid+bs || South `elem` legals) &&
+  (sx > -fieldMid+bs || West  `elem` legals) &&
+  not hitExplosion
+  where legals = legalMovesAt lev (fieldPos pos)
+        (sx,sy) = fieldSub pos
+        bs = 3
+
+        hitExplosion = any hitBy es
+        hitBy e = action e == Dying && abs (ex-px) < fieldMid && abs (ey-py) < fieldMid
+          where V ex ey = position e
 
 latch x0 s = transfer x0 store s
     where store Nothing  x = x
           store (Just x) _ = x
 
-keyDir (True,_,_,_) = Just North
-keyDir (_,True,_,_) = Just South
-keyDir (_,_,True,_) = Just West
-keyDir (_,_,_,True) = Just East
-keyDir _            = Nothing
+keyDir (True,_,_,_,_) = Just North
+keyDir (_,True,_,_,_) = Just South
+keyDir (_,_,True,_,_) = Just West
+keyDir (_,_,_,True,_) = Just East
+keyDir _              = Nothing
 
-intDir x = if x `mod` 1000 < 950 then Nothing else Just (toEnum (x `mod` 4))
+keyShoot (_,_,_,_,s) = s
 
-movePlayer level Nothing    plr = plr
-movePlayer level (Just dir) plr = animate (move level dir plr)
+newDir lev rnd act = if not (canMove lev act) then Just pickedLegalDir
+                     else if rnd `mod` 1000 < 992 then Nothing
+                          else Just (toEnum (rnd `mod` 4))
+  where legal = legalMovesAt lev (fieldPos (position act))
+        pickedLegalDir = legal !! (rnd `mod` length legal)
 
-moveEnemy level dir act = animate (move level dir act)
+movePlayer level mov shoot plr = case mov of
+  Nothing  -> if action plr' == Shooting then animate plr' else plr'
+  Just dir -> animate (move level dir plr')
+  where plr' = if shoot then
+                 plr { animation = shootAnimation (skin plr)
+                     , action = Shooting
+                     }
+               else plr
+
+moveEnemy level dir bs act = animate (mv act')
+  where act' = if hit then
+                 act { animation = deathAnimation (skin act)
+                     , action = Dying
+                     }
+               else act
+        mv = if action act' /= Dying then move level dir else id
+        hit = any hitBy bs
+        V px py = position act
+        hitBy (V bx by) = abs (bx-px) < fieldMid && abs (by-py) < fieldMid
 
 loadLevels file = do
   dat <- lines <$> readFile file

@@ -5,6 +5,7 @@ module Level
        , turnRight
        , turnBack
        , turnLeft
+       , isVertical
        ) where
 
 import Control.Monad.Error
@@ -33,6 +34,11 @@ turnBack = dirFromInt . (+2) . fromEnum
 
 turnLeft :: Direction -> Direction
 turnLeft = dirFromInt . (+3) . fromEnum
+
+isVertical :: Direction -> Bool
+isVertical North = True
+isVertical South = True
+isVertical _     = False
 
 parseLevel :: [String] -> Either String (Level,[String])
 parseLevel lines = do

@@ -17,7 +17,7 @@ data Skin = Skin
 data ActorType = BlueWorrior | YellowWorrior | Burwor | Garwor | Thorwor | Worluk | Wizard
                deriving (Eq, Ord, Enum, Ix, Show)
 
-data Action = Walking | Shooting | Dying
+data Action = Walking | Shooting | Dying deriving Eq
 
 data Actor = Actor
              { position :: Vec
@@ -34,10 +34,10 @@ data Vec = V !Int !Int deriving (Show, Eq)
 instance Num Vec where
   V x1 y1 + V x2 y2 = V (x1+x2) (y1+y2)
   V x1 y1 - V x2 y2 = V (x1-x2) (y1-y2)
-  (*) = error "No (*) for vectors!"
-  abs = error "No abs for vectors!"
-  signum = error "No signum for vectors!"
-  fromInteger = error "No fromInteger for vectors!"
+  V x1 y1 * V x2 y2 = V (x1*x2) (y1*y2)
+  abs (V x y) = V (abs x) (abs y)
+  signum (V x y) = V (signum x) (signum y)
+  fromInteger x = V (fromInteger x) (fromInteger x)
 
 mkActor skins atype pos =
   Actor { position = pos

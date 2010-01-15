@@ -19,7 +19,7 @@ solid = 1
 getAspectRatio level = fromIntegral lh / fromIntegral lw + hudHeight
   where (lw,lh) = levelSize level
 
-render displayText level actors = do
+render displayText level actors bullets = do
   let (lw,lh) = levelSize level
       height = fromIntegral lh / fromIntegral lw
       magn = 1 / fromIntegral lw
@@ -33,6 +33,7 @@ render displayText level actors = do
     scale magn magn (1 :: GLfloat)
 
     renderLevel level
+    renderBullets bullets
     renderActors actors
 
   displayText 0.03 0.03 0.0028 "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG"
@@ -62,6 +63,14 @@ renderActors as = do
         x' = fromIntegral x / fromIntegral fieldSize
         y' = fromIntegral y / fromIntegral fieldSize
     drawSprite (head (animation a)) (0.1+x') (0.1+y') 0.8 0.8 (facing a)
+
+renderBullets bs = do
+  texture Texture2D $= Disabled
+  color $ Color4 1 0.3 0.1 solid
+  forM_ bs $ \(V x y) -> do
+    let x' = fromIntegral x / fromIntegral fieldSize
+        y' = fromIntegral y / fromIntegral fieldSize
+    drawRectangle (0.45+x') (0.45+y') 0.1 0.1
 
 renderHud height = do
   texture Texture2D $= Disabled
