@@ -7,6 +7,8 @@ import Control.Monad
 import Control.Monad.Fix
 import Data.Char
 import Data.IORef
+import Data.List
+import Data.Maybe
 import FRP.Elerea.Experimental.Simple
 import Graphics.UI.GLFW
 import Graphics.Rendering.OpenGL hiding (position)
@@ -65,30 +67,48 @@ readKeys sink = do
   sink (pr kn, pr ks, pr kw, pr ke, pr kt)
 
 game renderFun newActor levels keyPress = mdo
-  let startLevel num = playLevel renderFun newActor keyPress (levels !! num)
-  switcher (startLevel <$> (noise `mod` pure (length levels)))
+  let startLevel level = playLevel newActor keyPress level
+      pickLevel cnt rnd = case () of
+        _ | cnt == 4         -> findLevel (=="arena")
+        _ | cnt < 8          -> findLevel ((=='b').head)
+        _ | cnt `mod` 6 == 1 -> findLevel (=="pit")
+        otherwise            -> findLevel ((=='w').head)
+        where findLevel p = pickOne (filter (p.levelName) levels)
+              pickOne xs = xs !! (rnd `mod` length xs)
+  (state,trig) <- switcher False (startLevel <$> (pickLevel <$> levelCount <*> noise))
+  trig' <- delay Nothing trig
+  levelCount <- transfer 1 (\win cnt -> if win == Just True then cnt+1 else cnt) trig'
+  --levelCount' <- delay 1 levelCount
+  return (renderFun <$> state <*> levelCount)
 
-playLevel renderFun newActor keyPress level = mdo
+playLevel newActor keyPress level = mdo
+  let mkTrigger enemies player = if null enemies || null (animation player)
+                                 then Just (not (isDead player))
+                                 else Nothing
+
   shoot <- memo =<< edge (keyShoot <$> keyPress)
-  player <- transfer2 (newActor YellowWorrior (V 0 0)) (movePlayer level) (keyDir <$> keyPress) shoot
+  player <- transfer3 (newActor YellowWorrior (V 0 0)) (movePlayer level) (keyDir <$> keyPress) shoot enemies'
 
   bulletSource <- generator (mkShot <$> shoot <*> player)
   bullets <- collection bulletSource (notHitAnything level <$> enemies')
 
-  enemySource <- flip delay (pure []) =<< replicateM 8 (enemy newActor level bullets)
+  enemySource <- flip delay (pure []) =<< replicateM 2 (enemy newActor level bullets)
   enemies <- collection enemySource (pure (not . null . animation))
   enemies' <- delay [] enemies
 
-  return (renderFun level <$> liftA2 (:) player enemies <*> bullets
-         ,null <$> enemies
+  return (LevelState level <$> liftA2 (:) player enemies <*> bullets
+         ,mkTrigger <$> enemies <*> player
          )
 
-mkShot c plr = if c then (:[]) <$> bullet (position plr) (facing plr) else return []
+mkShot c plr = if c && not (isDead plr)
+               then (:[]) <$> bullet (position plr) (facing plr)
+               else return []
 
 bullet pos dir = stateful pos (+3*dirVec dir)
 
 enemy newActor level bullets = mdo
-  let actorInit = (newActor Burwor (V fieldSize 0)) { speed = 4 }
+  let actorInit = (newActor Burwor (V (fieldSize*(lw-1)) (fieldSize*(lh-1)))) { speed = 4 }
+      (lw,lh) = levelSize level
   actorInput <- latch East (newDir level <$> noise <*> actor')
   actor <- transfer2 actorInit (moveEnemy level) actorInput bullets
   actor' <- delay actorInit actor
@@ -126,14 +146,21 @@ newDir lev rnd act = if not (canMove lev act) then Just pickedLegalDir
   where legal = legalMovesAt lev (fieldPos (position act))
         pickedLegalDir = legal !! (rnd `mod` length legal)
 
-movePlayer level mov shoot plr = case mov of
-  Nothing  -> if action plr' == Shooting then animate plr' else plr'
-  Just dir -> animate (move level dir plr')
-  where plr' = if shoot then
-                 plr { animation = shootAnimation (skin plr)
-                     , action = Shooting
-                     }
-               else plr
+movePlayer level mov shoot enemies plr = case mov of
+  Nothing  -> if action plr' /= Walking then animate plr' else plr'
+  Just dir -> animate (if not (isDead plr) then move level dir plr' else plr')
+  where plr' = case () of
+          _ | isDead plr -> plr
+          _ | killed     -> plr { animation = deathAnimation (skin plr)
+                                , action = Dying
+                                , speed = 6
+                                }
+          _ | shoot      -> plr { animation = shootAnimation (skin plr)
+                                , action = Shooting
+                                }
+          otherwise      -> plr
+        killed = isJust (find (==getXY plr) [getXY enemy | enemy <- enemies, not (isDead enemy)])
+        getXY = fieldPos.position
 
 moveEnemy level dir bs act = animate (mv act')
   where act' = if hit then

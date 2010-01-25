@@ -8,6 +8,12 @@ import Actor
 import Level
 import Sprites
 
+data LevelState = LevelState
+                  { level :: Level
+                  , actors :: [Actor]
+                  , bullets :: [Vec]
+                  }
+
 fieldSize = 16
 
 fieldMid = fieldSize `div` 2

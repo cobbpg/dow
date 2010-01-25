@@ -2,6 +2,7 @@ module Render where
 
 import Control.Monad
 import Data.Array
+import Data.Char
 import Data.IORef
 import Graphics.UI.GLFW
 import Graphics.Rendering.OpenGL
@@ -19,8 +20,9 @@ solid = 1
 getAspectRatio level = fromIntegral lh / fromIntegral lw + hudHeight
   where (lw,lh) = levelSize level
 
-render displayText level actors bullets = do
-  let (lw,lh) = levelSize level
+render displayText levelState levelCount = do
+  let curLevel = level levelState
+      (lw,lh) = levelSize curLevel
       height = fromIntegral lh / fromIntegral lw
       magn = 1 / fromIntegral lw
 
@@ -32,11 +34,11 @@ render displayText level actors bullets = do
     translate $ Vector3 0 hudHeight (0 :: GLfloat)
     scale magn magn (1 :: GLfloat)
 
-    renderLevel level
-    renderBullets bullets
-    renderActors actors
+    renderLevel curLevel
+    renderBullets (bullets levelState)
+    renderActors (actors levelState)
 
-  displayText 0.03 0.03 0.0028 "THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG"
+  displayText 0.03 0.03 0.0028 $ "LEVEL " ++ show levelCount ++ " " ++ map toUpper (levelName curLevel)
 
   flush
   swapBuffers
@@ -62,7 +64,7 @@ renderActors as = do
     let V x y = A.position a
         x' = fromIntegral x / fromIntegral fieldSize
         y' = fromIntegral y / fromIntegral fieldSize
-    drawSprite (head (animation a)) (0.1+x') (0.1+y') 0.8 0.8 (facing a)
+    when (not . null . animation $ a) $ drawSprite (head (animation a)) (0.1+x') (0.1+y') 0.8 0.8 (facing a)
 
 renderBullets bs = do
   texture Texture2D $= Disabled

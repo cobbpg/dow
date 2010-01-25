@@ -97,3 +97,6 @@ createSkins sprites = array (BlueWorrior,Wizard)
    )]
   where anim name = maybe (error ("Cannot find animation " ++ name)) snd
                     (find ((==name).fst) sprites)
+
+isDead :: Actor -> Bool
+isDead = (==Dying) . action
