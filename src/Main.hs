@@ -67,7 +67,7 @@ readKeys sink = do
   sink (pr kn, pr ks, pr kw, pr ke, pr kt)
 
 game renderFun newActor levels keyPress = mdo
-  let startLevel level = playLevel newActor keyPress level
+  let startLevel level enemyCount = playLevel newActor keyPress level enemyCount
       pickLevel cnt rnd = case () of
         _ | cnt == 4         -> findLevel (=="arena")
         _ | cnt < 8          -> findLevel ((=='b').head)
@@ -75,16 +75,26 @@ game renderFun newActor levels keyPress = mdo
         otherwise            -> findLevel ((=='w').head)
         where findLevel p = pickOne (filter (p.levelName) levels)
               pickOne xs = xs !! (rnd `mod` length xs)
-  (state,trig) <- switcher False (startLevel <$> (pickLevel <$> levelCount <*> noise))
+
+  (state,trig) <- switcher (startLevel <$> (pickLevel <$> levelCount <*> noise) <*> levelCount)
   trig' <- delay Nothing trig
   levelCount <- transfer 1 (\win cnt -> if win == Just True then cnt+1 else cnt) trig'
-  --levelCount' <- delay 1 levelCount
+
   return (renderFun <$> state <*> levelCount)
 
-playLevel newActor keyPress level = mdo
+playLevel newActor keyPress level enemyCount = mdo
   let mkTrigger enemies player = if null enemies || null (animation player)
-                                 then Just (not (isDead player))
+                                 then Just (isAlive player)
                                  else Nothing
+      mkEnemy etype = enemy (newActor etype) level bullets
+
+      spawnEnemies = concatMap spawnEnemy
+      spawnEnemy enemy = if isDead enemy && length (animation enemy) == 1 && tick enemy == 0 then
+                           case actorType enemy of
+                             Burwor -> [mkEnemy Garwor]
+                             Garwor -> [mkEnemy Thorwor]
+                             _      -> []
+                         else []
 
   shoot <- memo =<< edge (keyShoot <$> keyPress)
   player <- transfer3 (newActor YellowWorrior (V 0 0)) (movePlayer level) (keyDir <$> keyPress) shoot enemies'
@@ -92,7 +102,9 @@ playLevel newActor keyPress level = mdo
   bulletSource <- generator (mkShot <$> shoot <*> player)
   bullets <- collection bulletSource (notHitAnything level <$> enemies')
 
-  enemySource <- flip delay (pure []) =<< replicateM 2 (enemy newActor level bullets)
+  initialEnemies <- replicateM enemyCount (mkEnemy Burwor)
+  spawnedEnemies <- generator (sequence . spawnEnemies <$> enemies')
+  enemySource <- delay initialEnemies spawnedEnemies
   enemies <- collection enemySource (pure (not . null . animation))
   enemies' <- delay [] enemies
 
@@ -100,15 +112,18 @@ playLevel newActor keyPress level = mdo
          ,mkTrigger <$> enemies <*> player
          )
 
-mkShot c plr = if c && not (isDead plr)
+mkShot c plr = if c && isAlive plr
                then (:[]) <$> bullet (position plr) (facing plr)
                else return []
 
 bullet pos dir = stateful pos (+3*dirVec dir)
 
 enemy newActor level bullets = mdo
-  let actorInit = (newActor Burwor (V (fieldSize*(lw-1)) (fieldSize*(lh-1)))) { speed = 4 }
+  let actorInit = (newActor (V (fieldSize*startX) (fieldSize*startY))) { speed = 4 }
       (lw,lh) = levelSize level
+  startX <- (`mod` lw) <$> getRandom
+  startY <- (`mod` lh) <$> getRandom
+
   actorInput <- latch East (newDir level <$> noise <*> actor')
   actor <- transfer2 actorInit (moveEnemy level) actorInput bullets
   actor' <- delay actorInit actor
@@ -148,7 +163,7 @@ newDir lev rnd act = if not (canMove lev act) then Just pickedLegalDir
 
 movePlayer level mov shoot enemies plr = case mov of
   Nothing  -> if action plr' /= Walking then animate plr' else plr'
-  Just dir -> animate (if not (isDead plr) then move level dir plr' else plr')
+  Just dir -> animate (if isAlive plr then move level dir plr' else plr')
   where plr' = case () of
           _ | isDead plr -> plr
           _ | killed     -> plr { animation = deathAnimation (skin plr)
@@ -159,7 +174,7 @@ movePlayer level mov shoot enemies plr = case mov of
                                 , action = Shooting
                                 }
           otherwise      -> plr
-        killed = isJust (find (==getXY plr) [getXY enemy | enemy <- enemies, not (isDead enemy)])
+        killed = isJust (find (==getXY plr) [getXY enemy | enemy <- enemies, isAlive enemy])
         getXY = fieldPos.position
 
 moveEnemy level dir bs act = animate (mv act')

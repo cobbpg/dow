@@ -31,10 +31,11 @@ collection source isAlive = mdo
   collWithVals' <- memo (filter <$> ((.fst) <$> isAlive) <*> collWithVals)
   return $ map fst <$> collWithVals'
 
-switcher val gen = mdo
-  trig <- delay (Just val) (join (snd <$> pw))
-  ss <- generator (toMaybe <$> trig <*> gen)
+switcher gen = mdo
+  trig <- memo (snd =<< pw)
+  trig' <- delay (Just undefined) trig
+  ss <- generator (toMaybe . isJust <$> trig' <*> gen)
   pw <- undefined --> ss
-  return (join (fst <$> pw),trig)
+  return (fst =<< pw,trig)
 
-toMaybe b s = if isJust b then Just <$> s else pure Nothing
+toMaybe b s = if b then Just <$> s else pure Nothing

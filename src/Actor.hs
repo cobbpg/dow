@@ -20,7 +20,8 @@ data ActorType = BlueWorrior | YellowWorrior | Burwor | Garwor | Thorwor | Worlu
 data Action = Walking | Shooting | Dying deriving Eq
 
 data Actor = Actor
-             { position :: Vec
+             { actorType :: ActorType
+             , position :: Vec
              , facing :: Direction
              , action :: Action
              , animation :: [TextureObject]
@@ -40,7 +41,8 @@ instance Num Vec where
   fromInteger x = V (fromInteger x) (fromInteger x)
 
 mkActor skins atype pos =
-  Actor { position = pos
+  Actor { actorType = atype
+        , position = pos
         , facing = East
         , action = Walking
         , animation = walkAnimation (skins ! atype)
@@ -100,3 +102,6 @@ createSkins sprites = array (BlueWorrior,Wizard)
 
 isDead :: Actor -> Bool
 isDead = (==Dying) . action
+
+isAlive :: Actor -> Bool
+isAlive = not . isDead
