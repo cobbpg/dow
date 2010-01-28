@@ -33,8 +33,8 @@ collection source isAlive = mdo
 
 switcher gen = mdo
   trig <- memo (snd =<< pw)
-  trig' <- delay (Just undefined) trig
-  ss <- generator (toMaybe . isJust <$> trig' <*> gen)
+  trig' <- delay True trig
+  ss <- generator (toMaybe <$> trig' <*> gen)
   pw <- undefined --> ss
   return (fst =<< pw,trig)
 

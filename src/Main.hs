@@ -77,16 +77,17 @@ game renderFun newActor levels keyPress = mdo
               pickOne xs = xs !! (rnd `mod` length xs)
 
   (state,trig) <- switcher (startLevel <$> (pickLevel <$> levelCount <*> noise) <*> levelCount)
-  trig' <- delay Nothing trig
-  levelCount <- transfer 1 (\win cnt -> if win == Just True then cnt+1 else cnt) trig'
+  trig' <- delay False trig
+  levelCount <- transfer 1 (\win cnt -> if win then cnt+1 else cnt) trig'
 
   return (renderFun <$> state <*> levelCount)
 
 playLevel newActor keyPress level enemyCount = mdo
-  let mkTrigger enemies player = if null enemies || null (animation player)
-                                 then Just (isAlive player)
-                                 else Nothing
-      mkEnemy etype = enemy (newActor etype) level bullets
+  let mkEnemy etype = enemy (newActor etype) level bullets
+
+      mkShot c plr = if c && isAlive plr
+                     then (:[]) <$> bullet (position plr) (facing plr)
+                     else return []
 
       spawnEnemies = concatMap spawnEnemy
       spawnEnemy enemy = if isDead enemy && length (animation enemy) == 1 && tick enemy == 0 then
@@ -97,7 +98,9 @@ playLevel newActor keyPress level enemyCount = mdo
                          else []
 
   shoot <- memo =<< edge (keyShoot <$> keyPress)
-  player <- transfer3 (newActor YellowWorrior (V 0 0)) (movePlayer level) (keyDir <$> keyPress) shoot enemies'
+  (player,playerDeath) <- switcher . pure $ do
+    plr <- transfer3 (newActor YellowWorrior (V 0 0)) (movePlayer level) (keyDir <$> keyPress) shoot enemies'
+    return (plr, null . animation <$> plr)
 
   bulletSource <- generator (mkShot <$> shoot <*> player)
   bullets <- collection bulletSource (notHitAnything level <$> enemies')
@@ -109,12 +112,8 @@ playLevel newActor keyPress level enemyCount = mdo
   enemies' <- delay [] enemies
 
   return (LevelState level <$> liftA2 (:) player enemies <*> bullets
-         ,mkTrigger <$> enemies <*> player
+         ,null <$> enemies
          )
-
-mkShot c plr = if c && isAlive plr
-               then (:[]) <$> bullet (position plr) (facing plr)
-               else return []
 
 bullet pos dir = stateful pos (+3*dirVec dir)
 
@@ -123,8 +122,9 @@ enemy newActor level bullets = mdo
       (lw,lh) = levelSize level
   startX <- (`mod` lw) <$> getRandom
   startY <- (`mod` lh) <$> getRandom
+  startDir <- toEnum . (`mod` 4) <$> getRandom
 
-  actorInput <- latch East (newDir level <$> noise <*> actor')
+  actorInput <- startDir --> newDir level <$> noise <*> actor'
   actor <- transfer2 actorInit (moveEnemy level) actorInput bullets
   actor' <- delay actorInit actor
   return actor
@@ -142,10 +142,6 @@ notHitAnything lev es pos@(V px py) =
         hitExplosion = any hitBy es
         hitBy e = action e == Dying && abs (ex-px) < fieldMid && abs (ey-py) < fieldMid
           where V ex ey = position e
-
-latch x0 s = transfer x0 store s
-    where store Nothing  x = x
-          store (Just x) _ = x
 
 keyDir (True,_,_,_,_) = Just North
 keyDir (_,True,_,_,_) = Just South
