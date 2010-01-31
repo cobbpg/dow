@@ -23,7 +23,7 @@ loadCharset file = do
       mkpix '#' = [255,255,255,255]
       mkpix _   = [255,255,255,0]
 
-  tid <- createTexture 256 256 $ \tex -> do
+  tid <- createTexture 256 256 False $ \tex -> do
     pokeArray tex $ concat (replicate (256*256) [255,255,255,0])
     forM_ (zip cs cpos) $ \((_,cimg),(x,y)) -> do
       forM_ (zip cimg [0..]) $ \(crow,ry) -> pokeArray (advancePtr tex ((x*32+1)*4+(y*32+1+ry)*256*4)) (concatMap mkpix crow)

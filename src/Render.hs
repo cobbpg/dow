@@ -1,9 +1,13 @@
-module Render where
+module Render
+       ( getAspectRatio
+       , getRenderFunction
+       ) where
 
 import Control.Monad
 import Data.Array
 import Data.Char
 import Data.IORef
+import Foreign.Marshal
 import Graphics.UI.GLFW
 import Graphics.Rendering.OpenGL
 
@@ -11,6 +15,7 @@ import Actor as A
 import Game
 import GraphUtils
 import Level
+import Text
 
 hudHeight = 0.2
 
@@ -20,7 +25,19 @@ solid = 1
 getAspectRatio level = fromIntegral lh / fromIntegral lw + hudHeight
   where (lw,lh) = levelSize level
 
-render displayText levelState levelCount = do
+getRenderFunction charset = do
+  rgbOverlay <- createTexture 24 24 True $ flip pokeArray $
+                concat [if b then [95,95,95,255] else c | y <- [0..23], x <- [0..23],
+                        let c = case x `div` 4 `mod` 3 of
+                              0 -> [255,191,191,255]
+                              1 -> [191,255,191,255]
+                              2 -> [191,191,255,255]
+                            b = x `mod` 4 == 0 || x < 12 && y `mod` 12 == 0 || x >= 12 && y `mod` 12 == 6
+                       ]
+
+  return $ render (uncurry displayString charset) rgbOverlay
+
+render displayText rgbOverlay levelState levelCount = do
   let curLevel = level levelState
       (lw,lh) = levelSize curLevel
       height = fromIntegral lh / fromIntegral lw
@@ -39,6 +56,21 @@ render displayText levelState levelCount = do
     renderActors (actors levelState)
 
   displayText 0.03 0.03 0.0028 $ "LEVEL " ++ show levelCount ++ " " ++ map toUpper (levelName curLevel)
+
+  texture Texture2D $= Enabled
+  textureBinding Texture2D $= Just rgbOverlay
+  blendFunc $= (Zero,SrcColor)
+  let pscale = 100
+  renderPrimitive Quads $ do
+    texCoord2 0 0
+    vertex3 0 0 0
+    texCoord2 pscale 0
+    vertex3 1 0 0
+    texCoord2 pscale pscale
+    vertex3 1 1 0
+    texCoord2 0 pscale
+    vertex3 0 1 0
+  blendFunc $= (SrcAlpha,OneMinusSrcAlpha)
 
   flush
   swapBuffers

@@ -5,13 +5,16 @@ import Foreign.Marshal
 import Foreign.Ptr
 import Graphics.Rendering.OpenGL
 
-createTexture :: Int -> Int -> (Ptr Word8 -> IO ()) -> IO TextureObject
-createTexture width height fill = allocaArray (width*height*4) $ \tex -> do
+createTexture :: Int -> Int -> Bool -> (Ptr Word8 -> IO ()) -> IO TextureObject
+createTexture width height looped fill = allocaArray (width*height*4) $ \tex -> do
   fill tex
   [tid] <- genObjectNames 1
   textureBinding Texture2D $= Just tid
-  textureWrapMode Texture2D S $= (Mirrored,Clamp)
-  textureWrapMode Texture2D T $= (Mirrored,Clamp)
+  if looped
+    then do textureWrapMode Texture2D S $= (Repeated,Repeat)
+            textureWrapMode Texture2D T $= (Repeated,Repeat)
+    else do textureWrapMode Texture2D S $= (Mirrored,Clamp)
+            textureWrapMode Texture2D T $= (Mirrored,Clamp)
   build2DMipmaps Texture2D RGBA' (fromIntegral width) (fromIntegral height) (PixelData RGBA UnsignedByte tex)
   return tid
 

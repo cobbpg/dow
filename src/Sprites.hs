@@ -60,5 +60,5 @@ createSprite colmap dat = do
         spw = length (head spdat')
         sph = length spdat'
 
-    tid <- createTexture spw sph $ flip pokeArray [comp | lin <- spdat', pix <- lin, comp <- colmap ! pix]
+    tid <- createTexture spw sph False $ flip pokeArray [comp | lin <- spdat', pix <- lin, comp <- colmap ! pix]
     return (Just (tid,dat''))

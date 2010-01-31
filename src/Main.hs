@@ -15,6 +15,7 @@ import Graphics.Rendering.OpenGL hiding (position)
 
 import Actor
 import Game
+import GraphUtils
 import Level
 import Render
 import Sprites
@@ -28,7 +29,9 @@ main = do
 
   levels <- loadLevels "levels.txt"
   sprites <- loadSprites "sprites.txt"
-  displayText <- uncurry displayString <$> loadCharset "charset.txt"
+  charset <- loadCharset "charset.txt"
+  render <- getRenderFunction charset
+
   let skins = createSkins sprites
       newActor = mkActor skins
 
@@ -45,7 +48,7 @@ main = do
   textureFunction $= Combine4
 
   (keyPress,keySink) <- external (False,False,False,False,False)
-  renderAction <- start $ game (render displayText) newActor levels keyPress
+  renderAction <- start $ game render newActor levels keyPress
 
   fix $ \loop -> do
     readKeys keySink
@@ -76,7 +79,8 @@ game renderFun newActor levels keyPress = mdo
         where findLevel p = pickOne (filter (p.levelName) levels)
               pickOne xs = xs !! (rnd `mod` length xs)
 
-  (state,trig) <- switcher (startLevel <$> (pickLevel <$> levelCount <*> noise) <*> levelCount)
+  levelNoise <- noise
+  (state,trig) <- switcher (startLevel <$> (pickLevel <$> levelCount <*> levelNoise) <*> levelCount)
   trig' <- delay False trig
   levelCount <- transfer 1 (\win cnt -> if win then cnt+1 else cnt) trig'
 
@@ -92,8 +96,8 @@ playLevel newActor keyPress level enemyCount = mdo
       spawnEnemies = concatMap spawnEnemy
       spawnEnemy enemy = if isDead enemy && length (animation enemy) == 1 && tick enemy == 0 then
                            case actorType enemy of
-                             Burwor -> [mkEnemy Garwor]
-                             Garwor -> [mkEnemy Thorwor]
+                             Burwor -> [mkEnemy Garwor <$> (position <$> player)]
+                             Garwor -> [mkEnemy Thorwor <$> (position <$> player)]
                              _      -> []
                          else []
 
@@ -105,8 +109,8 @@ playLevel newActor keyPress level enemyCount = mdo
   bulletSource <- generator (mkShot <$> shoot <*> player)
   bullets <- collection bulletSource (notHitAnything level <$> enemies')
 
-  initialEnemies <- replicateM enemyCount (mkEnemy Burwor)
-  spawnedEnemies <- generator (sequence . spawnEnemies <$> enemies')
+  initialEnemies <- replicateM enemyCount (mkEnemy Burwor (V 0 0))
+  spawnedEnemies <- generator (sequence <$> (sequence . spawnEnemies =<< enemies'))
   enemySource <- delay initialEnemies spawnedEnemies
   enemies <- collection enemySource (pure (not . null . animation))
   enemies' <- delay [] enemies
@@ -117,14 +121,19 @@ playLevel newActor keyPress level enemyCount = mdo
 
 bullet pos dir = stateful pos (+3*dirVec dir)
 
-enemy newActor level bullets = mdo
-  let actorInit = (newActor (V (fieldSize*startX) (fieldSize*startY))) { speed = 4 }
+enemy newActor level bullets (V playerX playerY) = mdo
+  let actorInit = (newActor (fromIntegral fieldSize*startPos)) { speed = 4 }
+      startPos = if abs (startX-playerX `div` fieldSize) < 3 && abs (startY-playerY `div` fieldSize) < 3
+                 then V ((startX + lw `div` 2) `mod` lw) ((startY + lh `div` 2) `mod` lh)
+                 else V startX startY
       (lw,lh) = levelSize level
+
   startX <- (`mod` lw) <$> getRandom
   startY <- (`mod` lh) <$> getRandom
   startDir <- toEnum . (`mod` 4) <$> getRandom
+  dirNoise <- noise
 
-  actorInput <- startDir --> newDir level <$> noise <*> actor'
+  actorInput <- startDir --> newDir level <$> dirNoise <*> actor'
   actor <- transfer2 actorInit (moveEnemy level) actorInput bullets
   actor' <- delay actorInit actor
   return actor
