@@ -78,13 +78,23 @@ game renderFun newActor levels keyPress = mdo
         otherwise            -> findLevel ((=='w').head)
         where findLevel p = pickOne (filter (p.levelName) levels)
               pickOne xs = xs !! (rnd `mod` length xs)
+      accumScore state prev = prev + (foldl' (+) 0 . map killScore . tail . actors) state
+        where killScore Actor { action = Dying, animation = [_], tick = 0, actorType = t } =
+                case t of
+                  Burwor -> 100
+                  Garwor -> 200
+                  Thorwor -> 500
+                  Worluk -> 1000
+                  _ -> 0
+              killScore _ = 0
 
   levelNoise <- noise
   (state,trig) <- switcher (startLevel <$> (pickLevel <$> levelCount <*> levelNoise) <*> levelCount)
   trig' <- delay False trig
   levelCount <- transfer 1 (\win cnt -> if win then cnt+1 else cnt) trig'
+  score <- transfer 0 accumScore state
 
-  return (renderFun <$> state <*> levelCount)
+  return (renderFun <$> state <*> levelCount <*> score)
 
 playLevel newActor keyPress level enemyCount = mdo
   let mkEnemy etype = enemy (newActor etype) level bullets

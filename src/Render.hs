@@ -9,7 +9,7 @@ import Data.Char
 import Data.IORef
 import Foreign.Marshal
 import Graphics.UI.GLFW
-import Graphics.Rendering.OpenGL
+import Graphics.Rendering.OpenGL hiding (position)
 
 import Actor as A
 import Game
@@ -37,7 +37,7 @@ getRenderFunction charset = do
 
   return $ render (uncurry displayString charset) rgbOverlay
 
-render displayText rgbOverlay levelState levelCount = do
+render displayText rgbOverlay levelState levelCount score = do
   let curLevel = level levelState
       (lw,lh) = levelSize curLevel
       height = fromIntegral lh / fromIntegral lw
@@ -46,7 +46,7 @@ render displayText rgbOverlay levelState levelCount = do
   clear [ColorBuffer]
   loadIdentity
 
-  renderHud height
+  renderHud displayText height score (actors levelState) levelCount curLevel
   preservingMatrix $ do
     translate $ Vector3 0 hudHeight (0 :: GLfloat)
     scale magn magn (1 :: GLfloat)
@@ -54,8 +54,6 @@ render displayText rgbOverlay levelState levelCount = do
     renderLevel curLevel
     renderBullets (bullets levelState)
     renderActors (actors levelState)
-
-  displayText 0.03 0.03 0.0028 $ "LEVEL " ++ show levelCount ++ " " ++ map toUpper (levelName curLevel)
 
   texture Texture2D $= Enabled
   textureBinding Texture2D $= Just rgbOverlay
@@ -106,10 +104,52 @@ renderBullets bs = do
         y' = fromIntegral y / fromIntegral fieldSize
     drawRectangle (0.45+x') (0.45+y') 0.1 0.1
 
-renderHud height = do
+renderHud displayText height score actors levelCount level = do
+  let r = Color4 1 0 0 solid
+      b = Color4 0.25 0.63 1 solid
+      y = Color4 0.93 0.79 0 solid
+      d = Color4 0 0 0 solid
+      charSize = 0.0028
+      radarTitle = if levelCount == 1 then "RADAR" else
+                     case levelName level of
+                       "pit"   -> "THE PIT"
+                       "arena" -> "THE ARENA"
+                       _       -> "DUNGEON " ++ show levelCount
+      (levelW,levelH) = levelSize level
+      scoreB = hudHeight / 4
+      scoreW = 0.3
+      scoreH = scoreB*3
+      radarB = charSize
+      radarW = radarF*fromIntegral levelW
+      radarH = hudHeight-radarB*4-charSize*10
+      radarF = radarH/fromIntegral levelH
+      num = show score
+
   texture Texture2D $= Disabled
-  color $ Color4 0.6 0.6 0.6 solid
-  drawRectangle 0 0 1 hudHeight
+  color b
+  drawRectangle 0 0 scoreW scoreH
+  drawRectangle (0.5-radarW/2-radarB) 0 (radarW+radarB*2) (radarH+radarB*2)
+  color y
+  drawRectangle (1-scoreW) 0 scoreW scoreH
+  color d
+  drawRectangle scoreB scoreB (scoreW-2*scoreB) (scoreH-2*scoreB)
+  drawRectangle (1-scoreW+scoreB) scoreB (scoreW-2*scoreB) (scoreH-2*scoreB)
+  drawRectangle (0.5-radarW/2) radarB radarW radarH
+  forM_ actors $ \actor -> do
+    let (fx,fy) = fieldPos (position actor)
+        rx = 0.5-radarW/2+radarF*fromIntegral fx
+        ry = radarB+radarF*fromIntegral fy
+    case actorType actor of
+      Burwor -> color b >> drawRectangle rx ry radarF radarF
+      Garwor -> color y >> drawRectangle rx ry radarF radarF
+      Thorwor -> color r >> drawRectangle rx ry radarF radarF
+      _ -> return ()
+
+  texture Texture2D $= Enabled
+  color y
+  displayText (1-scoreB-(fromIntegral (length num)*8*charSize)) (scoreB+scoreH/2-scoreB-5*charSize) charSize num
+  color r
+  displayText (0.5-(fromIntegral (length radarTitle)*4*charSize)) (radarH+radarB*3) charSize radarTitle
 
 drawRectangle :: GLfloat -> GLfloat -> GLfloat -> GLfloat -> IO ()
 drawRectangle x y sx sy = renderPrimitive Quads $ mapM_ vertex
