@@ -47,7 +47,8 @@ main = do
   textureFilter Texture2D $= ((Linear',Just Nearest),Linear')
   textureFunction $= Combine4
 
-  (keyPress,keySink) <- external (False,False,False,False,False)
+  let noKeys = (False,False,False,False,False)
+  (keyPress,keySink) <- external (noKeys,noKeys)
   renderAction <- start $ game render newActor levels keyPress
 
   fix $ \loop -> do
@@ -62,12 +63,18 @@ main = do
 
 readKeys sink = do
   let pr = (==Press)
-  kn <- getKey UP
-  ks <- getKey DOWN
-  kw <- getKey LEFT
-  ke <- getKey RIGHT
-  kt <- getKey LCTRL
-  sink (pr kn, pr ks, pr kw, pr ke, pr kt)
+  kn1 <- getKey UP
+  ks1 <- getKey DOWN
+  kw1 <- getKey LEFT
+  ke1 <- getKey RIGHT
+  kt1 <- getKey RCTRL
+  kn2 <- getKey 'W'
+  ks2 <- getKey 'S'
+  kw2 <- getKey 'A'
+  ke2 <- getKey 'D'
+  kt2 <- getKey LCTRL
+  sink ((pr kn1, pr ks1, pr kw1, pr ke1, pr kt1),
+        (pr kn2, pr ks2, pr kw2, pr ke2, pr kt2))
 
 game renderFun newActor levels keyPress = mdo
   let startLevel level enemyCount = playLevel newActor keyPress level enemyCount
@@ -78,58 +85,63 @@ game renderFun newActor levels keyPress = mdo
         otherwise            -> findLevel ((=='w').head)
         where findLevel p = pickOne (filter (p.levelName) levels)
               pickOne xs = xs !! (rnd `mod` length xs)
-      accumScore state prev = prev + (foldl' (+) 0 . map killScore . tail . actors) state
-        where killScore Actor { action = Dying, animation = [_], tick = 0, actorType = t } =
-                case t of
-                  Burwor -> 100
-                  Garwor -> 200
-                  Thorwor -> 500
-                  Worluk -> 1000
-                  _ -> 0
+      accumScore player state prev = prev + (sum . map killScore . actors) state
+        where killScore Actor { action = KilledBy p
+                              , animation = [_]
+                              , tick = 0
+                              , actorType = t
+                              } | p == player = actorValue t
               killScore _ = 0
 
   levelNoise <- noise
   (state,trig) <- switcher (startLevel <$> (pickLevel <$> levelCount <*> levelNoise) <*> levelCount)
   trig' <- delay False trig
   levelCount <- transfer 1 (\win cnt -> if win then cnt+1 else cnt) trig'
-  score <- transfer 0 accumScore state
+  score1 <- transfer 0 (accumScore YellowWorrior) state
+  score2 <- transfer 0 (accumScore BlueWorrior) state
 
-  return (renderFun <$> state <*> levelCount <*> score)
+  return (renderFun <$> state <*> levelCount <*> score1 <*> score2)
 
 playLevel newActor keyPress level enemyCount = mdo
   let mkEnemy etype = enemy (newActor etype) level bullets
 
       mkShot c plr = if c && isAlive plr
-                     then (:[]) <$> bullet (position plr) (facing plr)
+                     then (:[]) <$> bullet (actorType plr) (position plr) (facing plr)
                      else return []
 
       spawnEnemies = concatMap spawnEnemy
       spawnEnemy enemy = if isDead enemy && length (animation enemy) == 1 && tick enemy == 0 then
                            case actorType enemy of
-                             Burwor -> [mkEnemy Garwor <$> (position <$> player)]
-                             Garwor -> [mkEnemy Thorwor <$> (position <$> player)]
+                             Burwor -> [mkEnemy Garwor <$> (position <$> player1)]
+                             Garwor -> [mkEnemy Thorwor <$> (position <$> player1)]
                              _      -> []
                          else []
 
-  shoot <- memo =<< edge (keyShoot <$> keyPress)
-  (player,playerDeath) <- switcher . pure $ do
-    plr <- transfer3 (newActor YellowWorrior (V 0 0)) (movePlayer level) (keyDir <$> keyPress) shoot enemies'
-    return (plr, null . animation <$> plr)
+      (lw,lh) = levelSize level
 
-  bulletSource <- generator (mkShot <$> shoot <*> player)
-  bullets <- collection bulletSource (notHitAnything level <$> enemies')
+  [(player1,player1Death,shoot1),
+   (player2,player2Death,shoot2)] <- forM [(YellowWorrior,fst,lw-1),(BlueWorrior,snd,0)] $ \(worType,keySet,x) -> do
+    shoot <- memo =<< edge (keyShoot . keySet <$> keyPress)
+    (player,death) <- switcher . pure $ do
+      plr <- transfer3 (newActor worType (V (x*fieldSize) 0)) (movePlayer level) (keyDir . keySet <$> keyPress) shoot enemies'
+      return (plr, null . animation <$> plr)
+    return (player,death,shoot)
 
-  initialEnemies <- replicateM enemyCount (mkEnemy Burwor (V 0 0))
+  bulletSource1 <- generator (mkShot <$> shoot1 <*> player1)
+  bulletSource2 <- generator (mkShot <$> shoot2 <*> player2)
+  bullets <- collection (liftA2 (++) bulletSource1 bulletSource2) (notHitAnything level <$> enemies')
+
+  initialEnemies <- replicateM enemyCount (mkEnemy Burwor (V (-3*fieldSize) (-3*fieldSize)))
   spawnedEnemies <- generator (sequence <$> (sequence . spawnEnemies =<< enemies'))
   enemySource <- delay initialEnemies spawnedEnemies
   enemies <- collection enemySource (pure (not . null . animation))
   enemies' <- delay [] enemies
 
-  return (LevelState level <$> liftA2 (:) player enemies <*> bullets
+  return (LevelState level <$> ((\p1 p2 es -> p1:p2:es) <$> player1 <*> player2 <*> enemies) <*> bullets
          ,null <$> enemies
          )
 
-bullet pos dir = stateful pos (+3*dirVec dir)
+bullet src pos dir = fmap ((,) src) <$> stateful pos (+3*dirVec dir)
 
 enemy newActor level bullets (V playerX playerY) = mdo
   let actorInit = (newActor (fromIntegral fieldSize*startPos)) { speed = 4 }
@@ -148,7 +160,7 @@ enemy newActor level bullets (V playerX playerY) = mdo
   actor' <- delay actorInit actor
   return actor
 
-notHitAnything lev es pos@(V px py) =
+notHitAnything lev es (_,pos@(V px py)) =
   (sy <  fieldMid-bs || North `elem` legals) &&
   (sx <  fieldMid-bs || East  `elem` legals) &&
   (sy > -fieldMid+bs || South `elem` legals) &&
@@ -159,7 +171,7 @@ notHitAnything lev es pos@(V px py) =
         bs = 3
 
         hitExplosion = any hitBy es
-        hitBy e = action e == Dying && abs (ex-px) < fieldMid && abs (ey-py) < fieldMid
+        hitBy e = isDead e && abs (ex-px) < fieldMid && abs (ey-py) < fieldMid
           where V ex ey = position e
 
 keyDir (True,_,_,_,_) = Just North
@@ -179,29 +191,29 @@ newDir lev rnd act = if not (canMove lev act) then Just pickedLegalDir
 movePlayer level mov shoot enemies plr = case mov of
   Nothing  -> if action plr' /= Walking then animate plr' else plr'
   Just dir -> animate (if isAlive plr then move level dir plr' else plr')
-  where plr' = case () of
+  where plr' = case killed of
           _ | isDead plr -> plr
-          _ | killed     -> plr { animation = deathAnimation (skin plr)
-                                , action = Dying
+          Just enemy     -> plr { animation = deathAnimation (skin plr)
+                                , action = KilledBy (actorType enemy)
                                 , speed = 6
                                 }
           _ | shoot      -> plr { animation = shootAnimation (skin plr)
                                 , action = Shooting
                                 }
           otherwise      -> plr
-        killed = isJust (find (==getXY plr) [getXY enemy | enemy <- enemies, isAlive enemy])
+        killed = find ((==getXY plr).getXY) [enemy | enemy <- enemies, isAlive enemy]
         getXY = fieldPos.position
 
 moveEnemy level dir bs act = animate (mv act')
-  where act' = if hit then
-                 act { animation = deathAnimation (skin act)
-                     , action = Dying
-                     }
-               else act
-        mv = if action act' /= Dying then move level dir else id
-        hit = any hitBy bs
+  where act' = case hit of
+          Just (killer,_) -> act { animation = deathAnimation (skin act)
+                                 , action = KilledBy killer
+                                 }
+          Nothing ->  act
+        mv = if isAlive act' then move level dir else id
+        hit = find hitBy bs
         V px py = position act
-        hitBy (V bx by) = abs (bx-px) < fieldMid && abs (by-py) < fieldMid
+        hitBy (_,(V bx by)) = abs (bx-px) < fieldMid && abs (by-py) < fieldMid
 
 loadLevels file = do
   dat <- lines <$> readFile file

@@ -11,7 +11,7 @@ import Sprites
 data LevelState = LevelState
                   { level :: Level
                   , actors :: [Actor]
-                  , bullets :: [Vec]
+                  , bullets :: [(ActorType,Vec)]
                   }
 
 fieldSize = 16
@@ -68,7 +68,7 @@ animate ent = let ent' = ent { tick = (tick ent+1) `mod` speed ent }
                           , action = Walking
                           }
                 else ent' { animation = animation' }
-    Dying -> ent' { animation = animation' }
+    KilledBy _ -> ent' { animation = animation' }
 
 dirVec North = V 0 1
 dirVec East  = V 1 0

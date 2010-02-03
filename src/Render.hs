@@ -37,7 +37,7 @@ getRenderFunction charset = do
 
   return $ render (uncurry displayString charset) rgbOverlay
 
-render displayText rgbOverlay levelState levelCount score = do
+render displayText rgbOverlay levelState levelCount score1 score2 = do
   let curLevel = level levelState
       (lw,lh) = levelSize curLevel
       height = fromIntegral lh / fromIntegral lw
@@ -46,7 +46,7 @@ render displayText rgbOverlay levelState levelCount score = do
   clear [ColorBuffer]
   loadIdentity
 
-  renderHud displayText height score (actors levelState) levelCount curLevel
+  renderHud displayText height score1 score2 (actors levelState) levelCount curLevel
   preservingMatrix $ do
     translate $ Vector3 0 hudHeight (0 :: GLfloat)
     scale magn magn (1 :: GLfloat)
@@ -99,12 +99,12 @@ renderActors as = do
 renderBullets bs = do
   texture Texture2D $= Disabled
   color $ Color4 1 0.3 0.1 solid
-  forM_ bs $ \(V x y) -> do
+  forM_ bs $ \(_,V x y) -> do
     let x' = fromIntegral x / fromIntegral fieldSize
         y' = fromIntegral y / fromIntegral fieldSize
     drawRectangle (0.45+x') (0.45+y') 0.1 0.1
 
-renderHud displayText height score actors levelCount level = do
+renderHud displayText height score1 score2 actors levelCount level = do
   let r = Color4 1 0 0 solid
       b = Color4 0.25 0.63 1 solid
       y = Color4 0.93 0.79 0 solid
@@ -123,7 +123,8 @@ renderHud displayText height score actors levelCount level = do
       radarW = radarF*fromIntegral levelW
       radarH = hudHeight-radarB*4-charSize*10
       radarF = radarH/fromIntegral levelH
-      num = show score
+      num1 = show score1
+      num2 = show score2
 
   texture Texture2D $= Disabled
   color b
@@ -147,7 +148,9 @@ renderHud displayText height score actors levelCount level = do
 
   texture Texture2D $= Enabled
   color y
-  displayText (1-scoreB-(fromIntegral (length num)*8*charSize)) (scoreB+scoreH/2-scoreB-5*charSize) charSize num
+  displayText (1-scoreB-(fromIntegral (length num1)*8*charSize)) (scoreB+scoreH/2-scoreB-5*charSize) charSize num1
+  color b
+  displayText (scoreW-scoreB-(fromIntegral (length num2)*8*charSize)) (scoreB+scoreH/2-scoreB-5*charSize) charSize num2
   color r
   displayText (0.5-(fromIntegral (length radarTitle)*4*charSize)) (radarH+radarB*3) charSize radarTitle
 

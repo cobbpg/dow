@@ -17,7 +17,7 @@ data Skin = Skin
 data ActorType = BlueWorrior | YellowWorrior | Burwor | Garwor | Thorwor | Worluk | Wizard
                deriving (Eq, Ord, Enum, Ix, Show)
 
-data Action = Walking | Shooting | Dying deriving Eq
+data Action = Walking | Shooting | KilledBy ActorType deriving Eq
 
 data Actor = Actor
              { actorType :: ActorType
@@ -101,7 +101,18 @@ createSkins sprites = array (BlueWorrior,Wizard)
                     (find ((==name).fst) sprites)
 
 isDead :: Actor -> Bool
-isDead = (==Dying) . action
+isDead a = case action a of
+  KilledBy _ -> True
+  _          -> False
 
 isAlive :: Actor -> Bool
 isAlive = not . isDead
+
+actorValue Burwor = 100
+actorValue Garwor = 200
+actorValue Thorwor = 500
+actorValue Worluk = 1000
+actorValue Wizard = 2500
+actorValue BlueWorrior = 1000
+actorValue YellowWorrior = 1000
+
