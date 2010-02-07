@@ -17,7 +17,7 @@ data Level = Level
              , levelSize :: (Int,Int)
              , legalMoves :: Array (Int,Int) [Direction]
              , doors :: [(Direction,Int)]
-             , entrances :: [(Direction,Int)]
+             , entrances :: [(Direction,Int,Int)]
              } deriving Show
 
 data Direction = North | East | South | West
@@ -48,6 +48,11 @@ parseLevel lines = do
       width = length (head mazeLines) `div` 2
       height = length mazeLines `div` 2
 
+      mkEntrance (North,x) = (South,-1,x)
+      mkEntrance (South,x) = (North,height,x)
+      mkEntrance (East,y) = (West,y,width)
+      mkEntrance (West,y) = (East,y,-1)
+
   when (null lines' || length mazeLines < 3) $ fail "Nothing to parse"
   when (head nameLine /= '"') $ fail "Missing level name"
 
@@ -55,7 +60,7 @@ parseLevel lines = do
                 , levelSize = (width,height)
                 , legalMoves = listArray ((0,0),(height-1,width-1)) (makeMoves mazeLines)
                 , doors = "<>^v" `onEdgeOf` mazeLines
-                , entrances = "*" `onEdgeOf` mazeLines
+                , entrances = map mkEntrance ("*" `onEdgeOf` mazeLines)
                 }, rest)
 
 chars `onEdgeOf` lines =

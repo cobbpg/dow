@@ -105,9 +105,13 @@ game renderFun newActor levels keyPress = mdo
 playLevel newActor keyPress level enemyCount = mdo
   let mkEnemy etype = enemy (newActor etype) level bullets
 
-      mkShot c plr = if c && isAlive plr
+      mkShot c plr = if c && canShoot
                      then (:[]) <$> bullet (actorType plr) (position plr) (facing plr)
                      else return []
+        where canShoot = case action plr of
+                Walking -> True
+                Shooting -> True
+                _ -> False
 
       spawnEnemies = concatMap spawnEnemy
       spawnEnemy enemy = if isDead enemy && length (animation enemy) == 1 && tick enemy == 0 then
@@ -120,10 +124,15 @@ playLevel newActor keyPress level enemyCount = mdo
       (lw,lh) = levelSize level
 
   [(player1,player1Death,shoot1),
-   (player2,player2Death,shoot2)] <- forM [(YellowWorrior,fst,lw-1),(BlueWorrior,snd,0)] $ \(worType,keySet,x) -> do
+   (player2,player2Death,shoot2)] <- forM [(YellowWorrior,fst,1),(BlueWorrior,snd,0)] $ \(worType,keySet,pix) -> do
     shoot <- memo =<< edge (keyShoot . keySet <$> keyPress)
     (player,death) <- switcher . pure $ do
-      plr <- transfer3 (newActor worType (V (x*fieldSize) 0)) (movePlayer level) (keyDir . keySet <$> keyPress) shoot enemies'
+      let (pedir,py,px) = entrances level !! pix
+          playerInit = (newActor worType (V (px*fieldSize) ((lh-py-1)*fieldSize)))
+                         { action = Entering pedir False
+                         , facing = [East,West] !! pix
+                         }
+      plr <- transfer3 playerInit (movePlayer level) (keyDir . keySet <$> keyPress) shoot enemies'
       return (plr, null . animation <$> plr)
     return (player,death,shoot)
 
@@ -188,9 +197,17 @@ newDir lev rnd act = if not (canMove lev act) then Just pickedLegalDir
   where legal = legalMovesAt lev (fieldPos (position act))
         pickedLegalDir = legal !! (rnd `mod` length legal)
 
-movePlayer level mov shoot enemies plr = case mov of
-  Nothing  -> if action plr' /= Walking then animate plr' else plr'
-  Just dir -> animate (if isAlive plr then move level dir plr' else plr')
+movePlayer level mov shoot enemies plr = case action plr of
+  Entering dir False -> let startMoving = isJust mov || shoot
+                        in plr { action = Entering dir startMoving
+                               , position = position plr + if startMoving then dirVec dir else 0
+                               }
+  Entering dir True -> if fieldSub (position plr) == (0,0)
+                       then plr { action = Walking }
+                       else plr { position = position plr + dirVec dir }
+  _ -> case mov of
+    Nothing  -> if action plr' /= Walking then animate plr' else plr'
+    Just dir -> animate (if isAlive plr then move level dir plr' else plr')
   where plr' = case killed of
           _ | isDead plr -> plr
           Just enemy     -> plr { animation = deathAnimation (skin plr)

@@ -62,6 +62,7 @@ animate ent = let ent' = ent { tick = (tick ent+1) `mod` speed ent }
                   adv = if tick ent' == 0 then 1 else 0
                   animation' = drop adv (animation ent') in
   case action ent' of
+    Entering _ _ -> ent'
     Walking -> ent' { animation = animation' }
     Shooting -> if null animation'
                 then ent' { animation = walkAnimation (skin ent')

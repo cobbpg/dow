@@ -17,7 +17,7 @@ data Skin = Skin
 data ActorType = BlueWorrior | YellowWorrior | Burwor | Garwor | Thorwor | Worluk | Wizard
                deriving (Eq, Ord, Enum, Ix, Show)
 
-data Action = Walking | Shooting | KilledBy ActorType deriving Eq
+data Action = Entering Direction Bool | Walking | Shooting | KilledBy ActorType deriving Eq
 
 data Actor = Actor
              { actorType :: ActorType

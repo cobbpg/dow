@@ -22,8 +22,11 @@ hudHeight = 0.2
 solid :: GLfloat
 solid = 1
 
+fullLevelSize = addBorder . levelSize
+  where addBorder (w,h) = (w+2,h+2)
+
 getAspectRatio level = fromIntegral lh / fromIntegral lw + hudHeight
-  where (lw,lh) = levelSize level
+  where (lw,lh) = fullLevelSize level
 
 getRenderFunction charset = do
   rgbOverlay <- createTexture 24 24 True $ flip pokeArray $
@@ -39,7 +42,7 @@ getRenderFunction charset = do
 
 render displayText rgbOverlay levelState levelCount score1 score2 = do
   let curLevel = level levelState
-      (lw,lh) = levelSize curLevel
+      (lw,lh) = fullLevelSize curLevel
       height = fromIntegral lh / fromIntegral lw
       magn = 1 / fromIntegral lw
 
@@ -74,14 +77,15 @@ render displayText rgbOverlay levelState levelCount score1 score2 = do
   swapBuffers
 
 renderLevel level = do
-  let (lw,lh) = levelSize level
+  let (lw,lh) = fullLevelSize level
       height = fromIntegral lh / fromIntegral lw
+      entries = [((y,x),[]) | (_,y,x) <- entrances level]
 
   texture Texture2D $= Disabled
   color $ Color4 0.2 0.5 1 solid
-  forM_ (assocs (legalMoves level)) $ \((y,x),ms) -> do
-    let xc = fromIntegral x
-        yc = fromIntegral (lh-y-1)
+  forM_ (entries ++ assocs (legalMoves level)) $ \((y,x),ms) -> do
+    let xc = fromIntegral (x+1)
+        yc = fromIntegral (lh-y-2)
     unless (North `elem` ms) $ drawRectangle xc (yc+0.95) 1 0.05
     unless (South `elem` ms) $ drawRectangle xc yc 1 0.05
     unless (East `elem` ms) $ drawRectangle (xc+0.95) yc 0.05 1
@@ -94,7 +98,7 @@ renderActors as = do
     let V x y = A.position a
         x' = fromIntegral x / fromIntegral fieldSize
         y' = fromIntegral y / fromIntegral fieldSize
-    when (not . null . animation $ a) $ drawSprite (head (animation a)) (0.1+x') (0.1+y') 0.8 0.8 (facing a)
+    when (not . null . animation $ a) $ drawSprite (head (animation a)) (1.1+x') (1.1+y') 0.8 0.8 (facing a)
 
 renderBullets bs = do
   texture Texture2D $= Disabled
@@ -102,7 +106,7 @@ renderBullets bs = do
   forM_ bs $ \(_,V x y) -> do
     let x' = fromIntegral x / fromIntegral fieldSize
         y' = fromIntegral y / fromIntegral fieldSize
-    drawRectangle (0.45+x') (0.45+y') 0.1 0.1
+    drawRectangle (1.45+x') (1.45+y') 0.1 0.1
 
 renderHud displayText height score1 score2 actors levelCount level = do
   let r = Color4 1 0 0 solid
