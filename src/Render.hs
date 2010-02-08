@@ -1,6 +1,7 @@
 module Render
        ( getAspectRatio
-       , getRenderFunction
+       , getRenderFunctions
+       , setViewport
        ) where
 
 import Control.Monad
@@ -28,7 +29,30 @@ fullLevelSize = addBorder . levelSize
 getAspectRatio level = fromIntegral lh / fromIntegral lw + hudHeight
   where (lw,lh) = fullLevelSize level
 
-getRenderFunction charset = do
+setViewport ref size@(Size w h) = do
+  lr <- readIORef ref
+
+  let r = (fromIntegral h/fromIntegral w)
+      r' = recip r
+      lr' = recip lr
+      s = 2*min (max 1 (min lr' r')) (max (r/lr) lr')
+
+  viewport $= (Position 0 0,size)
+
+  matrixMode $= Projection
+  loadIdentity
+  scale (s*min 1 r) (s*min 1 r') (1 :: GLfloat)
+  translate $ Vector3 (-0.5) (-0.5*lr) (0 :: GLfloat)
+
+  matrixMode $= Modelview 0
+
+setAspectRatio ref val = do
+  writeIORef ref val
+  setViewport ref =<< get windowSize
+
+getRenderFunctions aspectRatio charset = do
+  let displayText = uncurry displayString charset
+
   rgbOverlay <- createTexture 24 24 True $ flip pokeArray $
                 concat [if b then [95,95,95,255] else c | y <- [0..23], x <- [0..23],
                         let c = case x `div` 4 `mod` 3 of
@@ -38,13 +62,39 @@ getRenderFunction charset = do
                             b = x `mod` 4 == 0 || x < 12 && y `mod` 12 == 0 || x >= 12 && y `mod` 12 == 6
                        ]
 
-  return $ render (uncurry displayString charset) rgbOverlay
+  return (renderGame aspectRatio displayText rgbOverlay
+         ,renderMenu aspectRatio displayText rgbOverlay
+         )
 
-render displayText rgbOverlay levelState levelCount score1 score2 = do
+renderMenu aspectRatio displayText rgbOverlay items item = do
+  let charSize = 0.006
+      textCol = Color4 1 0 0 solid
+      activeCol = Color4 0.93 0.79 0 solid
+
+  setAspectRatio aspectRatio 1
+
+  clear [ColorBuffer]
+  loadIdentity
+
+  texture Texture2D $= Enabled
+  forM_ (zip items [0..]) $ \(text,i) -> do
+    color $ if i == item then activeCol else textCol
+    displayText (0.5-(fromIntegral (length text)*4*charSize))
+                (0.5+charSize*(7*fromIntegral (length items-1-2*i)))
+                charSize text
+
+  renderOverlay rgbOverlay
+
+  flush
+  swapBuffers
+
+renderGame aspectRatio displayText rgbOverlay levelState levelCount score1 score2 = do
   let curLevel = level levelState
       (lw,lh) = fullLevelSize curLevel
       height = fromIntegral lh / fromIntegral lw
       magn = 1 / fromIntegral lw
+
+  setAspectRatio aspectRatio (getAspectRatio curLevel)
 
   clear [ColorBuffer]
   loadIdentity
@@ -58,9 +108,16 @@ render displayText rgbOverlay levelState levelCount score1 score2 = do
     renderBullets (bullets levelState)
     renderActors (actors levelState)
 
+  renderOverlay rgbOverlay
+
+  flush
+  swapBuffers
+
+renderOverlay rgbOverlay = do
   texture Texture2D $= Enabled
   textureBinding Texture2D $= Just rgbOverlay
   blendFunc $= (Zero,SrcColor)
+  color $ Color4 1 1 1 solid
   let pscale = 100
   renderPrimitive Quads $ do
     texCoord2 0 0
@@ -72,9 +129,6 @@ render displayText rgbOverlay levelState levelCount score1 score2 = do
     texCoord2 0 pscale
     vertex3 0 1 0
   blendFunc $= (SrcAlpha,OneMinusSrcAlpha)
-
-  flush
-  swapBuffers
 
 renderLevel level = do
   let (lw,lh) = fullLevelSize level

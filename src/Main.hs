@@ -27,16 +27,16 @@ main = do
   openWindow (Size 640 480) [DisplayRGBBits 8 8 8, DisplayAlphaBits 8, DisplayDepthBits 24] Window
   windowTitle $= "Dungeons of Wor"
 
+  aspectRatio <- newIORef 1
   levels <- loadLevels "levels.txt"
   sprites <- loadSprites "sprites.txt"
   charset <- loadCharset "charset.txt"
-  render <- getRenderFunction charset
+  render <- getRenderFunctions aspectRatio charset
 
   let skins = createSkins sprites
       newActor = mkActor skins
 
-  aspectRatio <- newIORef (getAspectRatio (levels !! 0))
-  windowSizeCallback $= resizeWindow aspectRatio
+  windowSizeCallback $= setViewport aspectRatio
 
   closed <- newIORef False
   windowCloseCallback $= writeIORef closed True
@@ -53,11 +53,15 @@ main = do
 
   fix $ \loop -> do
     readKeys keySink
-    join renderAction
-    sleep 0.02
-    stop <- readIORef closed
-    esc <- getKey ESC
-    when (not stop && esc /= Press) loop
+    act <- renderAction
+    case act of
+      Nothing -> return ()
+      Just act' ->
+          do act'
+             sleep 0.02
+             stop <- readIORef closed
+             esc <- getKey ESC
+             when (not stop && esc /= Press) loop
 
   closeWindow
 
@@ -76,7 +80,42 @@ readKeys sink = do
   sink ((pr kn1, pr ks1, pr kw1, pr ke1, pr kt1),
         (pr kn2, pr ks2, pr kw2, pr ke2, pr kt2))
 
-game renderFun newActor levels keyPress = mdo
+keySet1 = fst
+keySet2 = snd
+
+keyDir (True,_,_,_,_) = Just North
+keyDir (_,True,_,_,_) = Just South
+keyDir (_,_,True,_,_) = Just West
+keyDir (_,_,_,True,_) = Just East
+keyDir _              = Nothing
+
+keyShoot (_,_,_,_,s) = s
+
+keyAny k = keyShoot k || isJust (keyDir k)
+
+game (renderGame,renderMenu) newActor levels keyPress = do
+  (menu,pick) <- displayMenu renderMenu ["ONE PLAYER GAME","TWO PLAYER GAME","QUIT"] keyPress
+  let x = fmap Just <$> playGame renderGame newActor levels keyPress 2
+  return (Just <$> menu)
+
+toMaybe' b s = if b then Just <$> s else pure Nothing
+
+displayMenu renderMenu items keyPress = do
+  let pr c = if c then 1 else 0
+      mb c v = if c then Just v else Nothing
+
+  keys <- memo (keySet1 <$> keyPress) 
+  up <- edge $ (==Just North) . keyDir <$> keys
+  down <- edge $ (==Just South) . keyDir <$> keys
+  done <- edge $ keyShoot <$> keys
+  
+  item <- transfer2 0 (\u d i -> (i + pr d - pr u) `mod` length items) up down
+
+  return (renderMenu items <$> item
+         ,mb <$> done <*> item
+         )
+
+playGame renderFun newActor levels keyPress numPlayers = mdo
   let startLevel level enemyCount = playLevel newActor keyPress level enemyCount
       pickLevel cnt rnd = case () of
         _ | cnt == 4         -> findLevel (=="arena")
@@ -123,8 +162,8 @@ playLevel newActor keyPress level enemyCount = mdo
 
       (lw,lh) = levelSize level
 
-  [(player1,player1Death,shoot1),
-   (player2,player2Death,shoot2)] <- forM [(YellowWorrior,fst,1),(BlueWorrior,snd,0)] $ \(worType,keySet,pix) -> do
+  [(player1,player1Death,shoot1),(player2,player2Death,shoot2)]
+    <- forM [(YellowWorrior,keySet1,1),(BlueWorrior,keySet2,0)] $ \(worType,keySet,pix) -> do
     shoot <- memo =<< edge (keyShoot . keySet <$> keyPress)
     (player,death) <- switcher . pure $ do
       let (pedir,py,px) = entrances level !! pix
@@ -183,14 +222,6 @@ notHitAnything lev es (_,pos@(V px py)) =
         hitBy e = isDead e && abs (ex-px) < fieldMid && abs (ey-py) < fieldMid
           where V ex ey = position e
 
-keyDir (True,_,_,_,_) = Just North
-keyDir (_,True,_,_,_) = Just South
-keyDir (_,_,True,_,_) = Just West
-keyDir (_,_,_,True,_) = Just East
-keyDir _              = Nothing
-
-keyShoot (_,_,_,_,s) = s
-
 newDir lev rnd act = if not (canMove lev act) then Just pickedLegalDir
                      else if rnd `mod` 1000 < 992 then Nothing
                           else Just (toEnum (rnd `mod` 4))
@@ -247,19 +278,3 @@ loadSprites file = do
 
 trim s = reverse . dropWhile isSpace . reverse . dropWhile isSpace
 
-resizeWindow ref size@(Size w h) = do
-  lr <- readIORef ref
-
-  let r = fromIntegral h/fromIntegral w
-      r' = recip r
-      lr' = recip lr
-      s = 2*min (max 1 (min lr' r')) (max (r/lr) lr')
-
-  viewport $= (Position 0 0,size)
-
-  matrixMode $= Projection
-  loadIdentity
-  scale (s*min 1 r) (s*min 1 r') (1 :: GLfloat)
-  translate $ Vector3 (-0.5) (-0.5*lr) (0 :: GLfloat)
-
-  matrixMode $= Modelview 0
