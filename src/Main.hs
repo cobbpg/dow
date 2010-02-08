@@ -39,7 +39,8 @@ main = do
   windowSizeCallback $= setViewport aspectRatio
 
   closed <- newIORef False
-  windowCloseCallback $= writeIORef closed True
+  let closeAction = writeIORef closed True
+  windowCloseCallback $= closeAction
 
   clearColor $= Color4 0 0 0 1
   blend $= Enabled
@@ -49,19 +50,15 @@ main = do
 
   let noKeys = (False,False,False,False,False)
   (keyPress,keySink) <- external (noKeys,noKeys)
-  renderAction <- start $ game render newActor levels keyPress
+  renderAction <- start $ game render closeAction newActor levels keyPress
 
   fix $ \loop -> do
     readKeys keySink
-    act <- renderAction
-    case act of
-      Nothing -> return ()
-      Just act' ->
-          do act'
-             sleep 0.02
-             stop <- readIORef closed
-             esc <- getKey ESC
-             when (not stop && esc /= Press) loop
+    join renderAction
+    sleep 0.02
+    stop <- readIORef closed
+    esc <- getKey ESC
+    when (not stop && esc /= Press) loop
 
   closeWindow
 
@@ -93,30 +90,36 @@ keyShoot (_,_,_,_,s) = s
 
 keyAny k = keyShoot k || isJust (keyDir k)
 
-game (renderGame,renderMenu) newActor levels keyPress = do
-  (menu,pick) <- displayMenu renderMenu ["ONE PLAYER GAME","TWO PLAYER GAME","QUIT"] keyPress
-  let x = fmap Just <$> playGame renderGame newActor levels keyPress 2
-  return (Just <$> menu)
+game (renderGame,renderMenu) closeAction newActor levels keyPress = do
+  let firstTrue s = do
+        mask <- delay False =<< transfer False (||) s
+        return (liftA2 (&&) (not <$> mask) s)
+
+      mkGame 0 = playGame renderGame newActor levels keyPress 1
+      mkGame 1 = playGame renderGame newActor levels keyPress 2
+      mkGame _ = return (pure closeAction)
+
+  keys <- memo (keySet1 <$> keyPress)
+  (menu,pick) <- displayMenu renderMenu ["ONE PLAYER GAME","TWO PLAYER GAME","QUIT"] keys
+  picked <- firstTrue (keyShoot <$> keys)
+  gameSource <- generator (toMaybe <$> picked <*> (mkGame <$> pick))
+  out <- menu --> gameSource
+
+  return (join out)
 
 toMaybe' b s = if b then Just <$> s else pure Nothing
 
-displayMenu renderMenu items keyPress = do
+displayMenu renderMenu items keys = do
   let pr c = if c then 1 else 0
-      mb c v = if c then Just v else Nothing
 
-  keys <- memo (keySet1 <$> keyPress) 
-  up <- edge $ (==Just North) . keyDir <$> keys
-  down <- edge $ (==Just South) . keyDir <$> keys
-  done <- edge $ keyShoot <$> keys
-  
+  up <- edge ((==Just North) . keyDir <$> keys)
+  down <- edge ((==Just South) . keyDir <$> keys)
   item <- transfer2 0 (\u d i -> (i + pr d - pr u) `mod` length items) up down
 
-  return (renderMenu items <$> item
-         ,mb <$> done <*> item
-         )
+  return (renderMenu items <$> item, item)
 
 playGame renderFun newActor levels keyPress numPlayers = mdo
-  let startLevel level enemyCount = playLevel newActor keyPress level enemyCount
+  let startLevel level enemyCount = playLevel newActor keyPress level numPlayers enemyCount
       pickLevel cnt rnd = case () of
         _ | cnt == 4         -> findLevel (=="arena")
         _ | cnt < 8          -> findLevel ((=='b').head)
@@ -141,7 +144,7 @@ playGame renderFun newActor levels keyPress numPlayers = mdo
 
   return (renderFun <$> state <*> levelCount <*> score1 <*> score2)
 
-playLevel newActor keyPress level enemyCount = mdo
+playLevel newActor keyPress level numPlayers enemyCount = mdo
   let mkEnemy etype = enemy (newActor etype) level bullets
 
       mkShot c plr = if c && canShoot
@@ -155,16 +158,17 @@ playLevel newActor keyPress level enemyCount = mdo
       spawnEnemies = concatMap spawnEnemy
       spawnEnemy enemy = if isDead enemy && length (animation enemy) == 1 && tick enemy == 0 then
                            case actorType enemy of
-                             Burwor -> [mkEnemy Garwor <$> (position <$> player1)]
-                             Garwor -> [mkEnemy Thorwor <$> (position <$> player1)]
+                             Burwor -> [mkEnemy Garwor <$> (position <$> head players)]
+                             Garwor -> [mkEnemy Thorwor <$> (position <$> head players)]
                              _      -> []
                          else []
 
       (lw,lh) = levelSize level
 
-  [(player1,player1Death,shoot1),(player2,player2Death,shoot2)]
-    <- forM [(YellowWorrior,keySet1,1),(BlueWorrior,keySet2,0)] $ \(worType,keySet,pix) -> do
-    shoot <- memo =<< edge (keyShoot . keySet <$> keyPress)
+      playerInit = [(YellowWorrior,keySet1,1),(BlueWorrior,keySet2,0)]
+
+  (players,bulletSources) <- fmap unzip $ forM (take numPlayers playerInit) $ \(worType,keySet,pix) -> do
+    shoot <- edge (keyShoot . keySet <$> keyPress)
     (player,death) <- switcher . pure $ do
       let (pedir,py,px) = entrances level !! pix
           playerInit = (newActor worType (V (px*fieldSize) ((lh-py-1)*fieldSize)))
@@ -173,11 +177,10 @@ playLevel newActor keyPress level enemyCount = mdo
                          }
       plr <- transfer3 playerInit (movePlayer level) (keyDir . keySet <$> keyPress) shoot enemies'
       return (plr, null . animation <$> plr)
-    return (player,death,shoot)
+    bulletSource <- generator (mkShot <$> shoot <*> player)
+    return (player,bulletSource)
 
-  bulletSource1 <- generator (mkShot <$> shoot1 <*> player1)
-  bulletSource2 <- generator (mkShot <$> shoot2 <*> player2)
-  bullets <- collection (liftA2 (++) bulletSource1 bulletSource2) (notHitAnything level <$> enemies')
+  bullets <- collection (concat <$> sequence bulletSources) (notHitAnything level <$> enemies')
 
   initialEnemies <- replicateM enemyCount (mkEnemy Burwor (V (-3*fieldSize) (-3*fieldSize)))
   spawnedEnemies <- generator (sequence <$> (sequence . spawnEnemies =<< enemies'))
@@ -185,7 +188,7 @@ playLevel newActor keyPress level enemyCount = mdo
   enemies <- collection enemySource (pure (not . null . animation))
   enemies' <- delay [] enemies
 
-  return (LevelState level <$> ((\p1 p2 es -> p1:p2:es) <$> player1 <*> player2 <*> enemies) <*> bullets
+  return (LevelState level <$> (liftA2 (++) (sequence players) enemies) <*> bullets
          ,null <$> enemies
          )
 
@@ -229,7 +232,7 @@ newDir lev rnd act = if not (canMove lev act) then Just pickedLegalDir
         pickedLegalDir = legal !! (rnd `mod` length legal)
 
 movePlayer level mov shoot enemies plr = case action plr of
-  Entering dir False -> let startMoving = isJust mov || shoot
+  Entering dir False -> let startMoving = isJust mov
                         in plr { action = Entering dir startMoving
                                , position = position plr + if startMoving then dirVec dir else 0
                                }

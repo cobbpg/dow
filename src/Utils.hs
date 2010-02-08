@@ -39,14 +39,4 @@ switcher gen = mdo
   pw <- undefined --> ss
   return (fst =<< pw,trig)
 
---maybeSwitch gen next = do
---  (sig,trig) <- gen
---  --trig' <- trig --> fmap Nothing <$> trig 
---  ss <- generator (sequenceA . fmap next <$> trig)
---  pw <- sig --> ss
---  return pw
-
-firstJust sig = do
-  undefined
-
 toMaybe b s = if b then Just <$> s else pure Nothing
