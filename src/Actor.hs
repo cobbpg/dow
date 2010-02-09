@@ -7,6 +7,7 @@ import Graphics.Rendering.OpenGL hiding (position)
 
 import Level
 import Sprites
+import Vector
 
 data Skin = Skin
             { walkAnimation :: [TextureObject]
@@ -30,16 +31,7 @@ data Actor = Actor
              , tick :: Int
              }
 
-data Vec = V !Int !Int deriving (Show, Eq)
-
-instance Num Vec where
-  V x1 y1 + V x2 y2 = V (x1+x2) (y1+y2)
-  V x1 y1 - V x2 y2 = V (x1-x2) (y1-y2)
-  V x1 y1 * V x2 y2 = V (x1*x2) (y1*y2)
-  abs (V x y) = V (abs x) (abs y)
-  signum (V x y) = V (signum x) (signum y)
-  fromInteger x = V (fromInteger x) (fromInteger x)
-
+mkActor :: Array ActorType Skin -> ActorType -> Vec -> Actor
 mkActor skins atype pos =
   Actor { actorType = atype
         , position = pos
@@ -108,11 +100,16 @@ isDead a = case action a of
 isAlive :: Actor -> Bool
 isAlive = not . isDead
 
-actorValue Burwor = 100
-actorValue Garwor = 200
-actorValue Thorwor = 500
-actorValue Worluk = 1000
-actorValue Wizard = 2500
-actorValue BlueWorrior = 1000
-actorValue YellowWorrior = 1000
+justDied :: Actor -> Bool
+justDied Actor { action = KilledBy _, animation = [_], tick = 0 } = True
+justDied _ = False
 
+actorValue :: Actor -> Int
+actorValue a = case actorType a of
+  Burwor        -> 100
+  Garwor        -> 200
+  Thorwor       -> 500
+  Worluk        -> 1000
+  Wizard        -> 2500
+  BlueWorrior   -> 1000
+  YellowWorrior -> 1000

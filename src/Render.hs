@@ -17,6 +17,7 @@ import Game
 import GraphUtils
 import Level
 import Text
+import Vector
 
 hudHeight = 0.2
 
@@ -77,7 +78,7 @@ renderMenu aspectRatio displayText rgbOverlay items item = do
   loadIdentity
 
   texture Texture2D $= Enabled
-  forM_ (zip items [0..]) $ \(text,i) -> do
+  forM_ (zip ("DUNGEONS OF WOR":"":"":items) [-3..]) $ \(text,i) -> do
     color $ if i == item then activeCol else textCol
     displayText (0.5-(fromIntegral (length text)*4*charSize))
                 (0.5+charSize*(7*fromIntegral (length items-1-2*i)))
