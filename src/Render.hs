@@ -88,7 +88,7 @@ renderMenu aspectRatio displayText rgbOverlay items item = do
   flush
   swapBuffers
 
-renderGame aspectRatio displayText rgbOverlay levelState levelCount score1 score2 = do
+renderGame aspectRatio displayText rgbOverlay levelState levelCount scores lives = do
   let curLevel = level levelState
       (lw,lh) = fullLevelSize curLevel
       height = fromIntegral lh / fromIntegral lw
@@ -99,7 +99,7 @@ renderGame aspectRatio displayText rgbOverlay levelState levelCount score1 score
   clear [ColorBuffer]
   loadIdentity
 
-  renderHud displayText height score1 score2 (actors levelState) levelCount curLevel
+  renderHud displayText height scores lives (actors levelState) levelCount curLevel
   preservingMatrix $ do
     translate $ Vector3 0 hudHeight (0 :: GLfloat)
     scale magn magn (1 :: GLfloat)
@@ -162,7 +162,7 @@ renderBullets bs = do
         y' = fromIntegral y / fromIntegral fieldSize
     drawRectangle (1.45+x') (1.45+y') 0.1 0.1
 
-renderHud displayText height score1 score2 actors levelCount level = do
+renderHud displayText height scores lives actors levelCount level = do
   let r = Color4 1 0 0 solid
       b = Color4 0.25 0.63 1 solid
       y = Color4 0.93 0.79 0 solid
@@ -181,8 +181,11 @@ renderHud displayText height score1 score2 actors levelCount level = do
       radarW = radarF*fromIntegral levelW
       radarH = hudHeight-radarB*4-charSize*10
       radarF = radarH/fromIntegral levelH
-      num1 = show score1
-      num2 = show score2
+      snum1 = show (scores !! 0)
+      snum2 = show (scores !! 1)
+      lnum1 = show (lives !! 0)
+      lnum2 = show (lives !! 1)
+      numPlayers = length lives
 
   texture Texture2D $= Disabled
   color b
@@ -206,9 +209,12 @@ renderHud displayText height score1 score2 actors levelCount level = do
 
   texture Texture2D $= Enabled
   color y
-  displayText (1-scoreB-(fromIntegral (length num1)*8*charSize)) (scoreB+scoreH/2-scoreB-5*charSize) charSize num1
-  color b
-  displayText (scoreW-scoreB-(fromIntegral (length num2)*8*charSize)) (scoreB+scoreH/2-scoreB-5*charSize) charSize num2
+  displayText (1-scoreB-(fromIntegral (length snum1)*8*charSize)) (scoreB+scoreH/2-scoreB-5*charSize) charSize snum1
+  displayText (1-scoreW-3*radarB-(fromIntegral (length lnum1)*8*charSize)) (scoreB+scoreH/2-scoreB-5*charSize) charSize lnum1
+  when (numPlayers > 1) $ do
+    color b
+    displayText (scoreW-scoreB-(fromIntegral (length snum2)*8*charSize)) (scoreB+scoreH/2-scoreB-5*charSize) charSize snum2
+    displayText (scoreW+3*radarB) (scoreB+scoreH/2-scoreB-5*charSize) charSize lnum2
   color r
   displayText (0.5-(fromIntegral (length radarTitle)*4*charSize)) (radarH+radarB*3) charSize radarTitle
 

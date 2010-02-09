@@ -97,15 +97,15 @@ game (renderGame,renderMenu) closeAction newActor levels keyPress = do
 
       mkGame 0 = playGame renderGame newActor levels keyPress 1
       mkGame 1 = playGame renderGame newActor levels keyPress 2
-      mkGame _ = return (pure closeAction)
+      mkGame _ = return (pure closeAction,pure True)
 
   keys <- memo (keySet1 <$> keyPress)
   (menu,pick) <- displayMenu renderMenu ["ONE PLAYER GAME","TWO PLAYER GAME","QUIT"] keys
   picked <- firstTrue (keyShoot <$> keys)
   gameSource <- generator (toMaybe <$> picked <*> (mkGame <$> pick))
-  out <- menu --> gameSource
+  fullCycle <- menu --> gameSource
 
-  return (join out)
+  return (fst =<< fullCycle)
 
 toMaybe' b s = if b then Just <$> s else pure Nothing
 
@@ -116,10 +116,10 @@ displayMenu renderMenu items keys = do
   down <- edge ((==Just South) . keyDir <$> keys)
   item <- transfer2 0 (\u d i -> (i + pr d - pr u) `mod` length items) up down
 
-  return (renderMenu items <$> item, item)
+  return ((renderMenu items <$> item,pure False),item)
 
 playGame renderFun newActor levels keyPress numPlayers = mdo
-  let startLevel level enemyCount = playLevel newActor keyPress level numPlayers enemyCount
+  let startLevel level enemyCount = playLevel newActor keyPress level numPlayers lives' enemyCount
       pickLevel cnt rnd = case () of
         _ | cnt == 4         -> findLevel (=="arena")
         _ | cnt < 8          -> findLevel ((=='b').head)
@@ -134,17 +134,25 @@ playGame renderFun newActor levels keyPress numPlayers = mdo
                               , actorType = t
                               } | p == player = actorValue t
               killScore _ = 0
+      accumLives player state prev = max 0 $ prev + (sum . map lifeLost . actors) state
+        where lifeLost Actor { action = KilledBy _
+                             , animation = [_]
+                             , tick = 0
+                             , actorType = t
+                             } | t == player = -1
+              lifeLost _ = 0
 
   levelNoise <- noise
   (state,trig) <- switcher (startLevel <$> (pickLevel <$> levelCount <*> levelNoise) <*> levelCount)
   trig' <- delay False trig
   levelCount <- transfer 1 (\win cnt -> if win then cnt+1 else cnt) trig'
-  score1 <- transfer 0 (accumScore YellowWorrior) state
-  score2 <- transfer 0 (accumScore BlueWorrior) state
+  scores <- forM (take numPlayers [YellowWorrior,BlueWorrior]) $ \t -> transfer 0 (accumScore t) state
+  lives <- forM (take numPlayers [YellowWorrior,BlueWorrior]) $ \t -> transfer 5 (accumLives t) state
+  lives' <- delay (replicate numPlayers 5) (sequence lives)
 
-  return (renderFun <$> state <*> levelCount <*> score1 <*> score2)
+  return (renderFun <$> state <*> levelCount <*> sequence scores <*> sequence lives,all (==0) <$> sequence lives)
 
-playLevel newActor keyPress level numPlayers enemyCount = mdo
+playLevel newActor keyPress level numPlayers lives enemyCount = mdo
   let mkEnemy etype = enemy (newActor etype) level bullets
 
       mkShot c plr = if c && canShoot
@@ -167,16 +175,18 @@ playLevel newActor keyPress level numPlayers enemyCount = mdo
 
       playerInit = [(YellowWorrior,keySet1,1),(BlueWorrior,keySet2,0)]
 
-  (players,bulletSources) <- fmap unzip $ forM (take numPlayers playerInit) $ \(worType,keySet,pix) -> do
+  (players,bulletSources) <- fmap unzip $ forM (zip (take numPlayers playerInit) [0..]) $
+    \((worType,keySet,pix),lix) -> do
     shoot <- edge (keyShoot . keySet <$> keyPress)
-    (player,death) <- switcher . pure $ do
+    (player,_respawn) <- switcher . pure $ do
       let (pedir,py,px) = entrances level !! pix
           playerInit = (newActor worType (V (px*fieldSize) ((lh-py-1)*fieldSize)))
                          { action = Entering pedir False
                          , facing = [East,West] !! pix
                          }
+          respawn plr ls = ls !! lix > 0 && null (animation plr)
       plr <- transfer3 playerInit (movePlayer level) (keyDir . keySet <$> keyPress) shoot enemies'
-      return (plr, null . animation <$> plr)
+      return (plr, respawn <$> plr <*> lives)
     bulletSource <- generator (mkShot <$> shoot <*> player)
     return (player,bulletSource)
 
