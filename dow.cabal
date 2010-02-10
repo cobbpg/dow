@@ -1,0 +1,31 @@
+Name:                dow
+Version:             0.1.0
+Cabal-Version:       >= 1.2
+Synopsis:            Dungeons of Wor
+Category:            game, reactivity, FRP
+Description:
+
+  Dungeons of Wor is a homage to the classic arcade game, Wizard of
+  Wor.  It uses the artwork and levels from the Astrocade version, but
+  the gameplay mechanics differ from the original in several ways.
+
+  This game is also an experiment in functional reactive programming,
+  so it might be a useful resource to anyone interested in this topic.
+  It was coded using the simple version of Elerea, which provides
+  discrete streams as first-class values.
+
+Author:              Patai Gergely
+Maintainer:          Patai Gergely (patai@iit.bme.hu)
+Copyright:           (c) 2009, Patai Gergely
+License:             BSD3
+License-File:        LICENSE
+Stability:           experimental
+Build-Type:          Simple
+Extra-Source-Files:
+
+Executable dow
+  Executable:        dow
+  HS-Source-Dirs:    src
+  Main-IS:           Main.hs
+  Build-Depends:     base >= 4 && < 5, elerea >= 1.2.3, OpenGL >= 2.4, GLFW >= 0.4
+  GHC-Options:       -O2

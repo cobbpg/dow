@@ -15,15 +15,17 @@ import Render
 import Sprites
 import Text
 
+import Paths_dow (getDataFileName)
+
 main = do
   initialize
   openWindow (Size 640 480) [DisplayRGBBits 8 8 8, DisplayAlphaBits 8, DisplayDepthBits 24] Window
   windowTitle $= "Dungeons of Wor"
 
   aspectRatio <- newIORef 1
-  levels <- loadLevels "levels.txt"
-  sprites <- loadSprites "sprites.txt"
-  charset <- loadCharset "charset.txt"
+  levels <- loadLevels =<< getDataFileName "data/levels.txt"
+  sprites <- loadSprites =<< getDataFileName "data/sprites.txt"
+  charset <- loadCharset =<< getDataFileName "data/charset.txt"
   render <- getRenderFunctions aspectRatio charset
 
   let skins = createSkins sprites

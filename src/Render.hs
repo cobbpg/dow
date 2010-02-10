@@ -147,13 +147,21 @@ renderLevel level = do
     unless (West `elem` ms) $ drawRectangle xc yc 0.05 1
 
 renderActors as = do
+  let players = filter ((`elem` [BlueWorrior,YellowWorrior]) . actorType) as
   texture Texture2D $= Enabled
   color $ Color4 1 1 1 solid
   forM_ as $ \a -> do
     let V x y = A.position a
         x' = fromIntegral x / fromIntegral fieldSize
         y' = fromIntegral y / fromIntegral fieldSize
-    when (not . null . animation $ a) $ drawSprite (head (animation a)) (1.1+x') (1.1+y') 0.8 0.8 (facing a)
+        dist = case actorType a of
+          Garwor  -> 2*fieldSize
+          Thorwor -> fieldSize
+          _       -> maxBound
+        visible = any ((\(V px py) -> abs (x-px) < dist || abs (y-py) < dist) . A.position) players
+
+    when (visible && (not . null . animation) a) $
+      drawSprite (head (animation a)) (1.1+x') (1.1+y') 0.8 0.8 (facing a)
 
 renderBullets bs = do
   texture Texture2D $= Disabled
