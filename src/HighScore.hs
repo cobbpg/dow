@@ -10,15 +10,23 @@ loadScore = do
 
   let fileName = dir ++ "/highscore"
   fileChk <- doesFileExist fileName
-  unless fileChk $ writeFile fileName "0"
+  unless fileChk $ do
+    hdl <- openFile fileName WriteMode
+    hPutStr hdl "0"
+    hClose hdl
 
-  score <- readFile fileName
+  hdl <- openFile fileName ReadMode
+  score <- hGetLine hdl
+  hClose hdl
+
   return (read score)
 
 saveScore :: Int -> IO ()
 saveScore score = do
   dir <- getAppDir
-  writeFile (dir ++ "/highscore") (show score)
+  hdl <- openFile (dir ++ "/highscore") WriteMode
+  hPutStr hdl (show score)
+  hClose hdl
 
 getAppDir :: IO FilePath
 getAppDir = do

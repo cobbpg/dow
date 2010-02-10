@@ -22,10 +22,26 @@ License-File:        LICENSE
 Stability:           experimental
 Build-Type:          Simple
 Extra-Source-Files:
+  src/Actor.hs
+  src/Game.hs
+  src/GraphUtils.hs
+  src/HighScore.hs
+  src/Level.hs
+  src/Render.hs
+  src/Sprites.hs
+  src/Text.hs
+  src/Utils.hs
+  src/Vector.hs
+
+Data-Files:
+  README
+  data/charset.txt
+  data/levels.txt
+  data/sprites.txt
 
 Executable dow
   Executable:        dow
   HS-Source-Dirs:    src
   Main-IS:           Main.hs
-  Build-Depends:     base >= 4 && < 5, elerea >= 1.2.3, OpenGL >= 2.4, GLFW >= 0.4
+  Build-Depends:     base >= 4 && < 5, elerea >= 1.2.3, OpenGL >= 2.4, GLFW >= 0.4, array, mtl, directory
   GHC-Options:       -O2

@@ -10,6 +10,7 @@ import Graphics.Rendering.OpenGL
 
 import Actor
 import Game
+import HighScore
 import Level
 import Render
 import Sprites
@@ -45,7 +46,14 @@ main = do
 
   let noKeys = (False,False,False,False,False)
   (keyPress,keySink) <- external (noKeys,noKeys)
-  renderAction <- start $ game render closeAction newActor levels keyPress
+  (highScore,highScoreSink) <- external =<< loadScore
+  let storeScore scores = do
+        oldScore <- loadScore
+        let newScore = maximum (oldScore:scores)
+        saveScore newScore
+        highScoreSink newScore
+
+  renderAction <- start $ game highScore storeScore render closeAction newActor levels keyPress
 
   fix $ \loop -> do
     readKeys keySink

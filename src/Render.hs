@@ -67,10 +67,11 @@ getRenderFunctions aspectRatio charset = do
          ,renderMenu aspectRatio displayText rgbOverlay
          )
 
-renderMenu aspectRatio displayText rgbOverlay items item = do
+renderMenu aspectRatio displayText rgbOverlay score items item = do
   let charSize = 0.006
       textCol = Color4 1 0 0 solid
       activeCol = Color4 0.93 0.79 0 solid
+      menu = "DUNGEONS OF WOR":"":"":items++["","","HIGH SCORE "++show score]
 
   setAspectRatio aspectRatio 1
 
@@ -78,7 +79,7 @@ renderMenu aspectRatio displayText rgbOverlay items item = do
   loadIdentity
 
   texture Texture2D $= Enabled
-  forM_ (zip ("DUNGEONS OF WOR":"":"":items) [-3..]) $ \(text,i) -> do
+  forM_ (zip menu [-3..]) $ \(text,i) -> do
     color $ if i == item then activeCol else textCol
     displayText (0.5-(fromIntegral (length text)*4*charSize))
                 (0.5+charSize*(7*fromIntegral (length items-1-2*i)))

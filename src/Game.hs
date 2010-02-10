@@ -11,6 +11,7 @@ import Data.Maybe
 import FRP.Elerea.Experimental.Simple
 
 import Actor
+import HighScore
 import Level
 import Sprites
 import Utils
@@ -38,18 +39,18 @@ keyShoot (_,_,_,_,s) = s
 
 keyAny k = keyShoot k || isJust (keyDir k)
 
-game (renderGame,renderMenu) closeAction newActor levels keyPress = do
+game highScore storeScore (renderGame,renderMenu) closeAction newActor levels keyPress = do
   let firstTrue s = do
         mask <- delay False =<< transfer False (||) s
         return (liftA2 (&&) (not <$> mask) s)
 
-      mkGame 0 = playGame renderGame newActor levels keyPress 1
-      mkGame 1 = playGame renderGame newActor levels keyPress 2
+      mkGame 0 = playGame storeScore renderGame newActor levels keyPress 1
+      mkGame 1 = playGame storeScore renderGame newActor levels keyPress 2
       mkGame _ = return (pure closeAction,pure True)
 
   keys <- memo (keySet1 <$> keyPress)
-  (output,_) <- switcher . pure $ do
-    (menu,pick) <- displayMenu renderMenu ["ONE PLAYER GAME","TWO PLAYER GAME","QUIT"] keys
+  (output,_) <- switcher . flip fmap highScore $ \score -> do
+    (menu,pick) <- displayMenu (renderMenu score) ["ONE PLAYER GAME","TWO PLAYER GAME","QUIT"] keys
     picked <- firstTrue (keyShoot <$> keys)
     gameSource <- generator (toMaybe <$> picked <*> (mkGame <$> pick))
     fullOutput <- menu --> gameSource
@@ -67,7 +68,7 @@ displayMenu renderMenu items keys = do
 
   return ((renderMenu items <$> item,pure False),item)
 
-playGame renderFun newActor levels keyPress numPlayers = mdo
+playGame storeScore renderFun newActor levels keyPress numPlayers = mdo
   let startLevel level enemyCount = playLevel newActor keyPress level numPlayers lives' enemyCount
       players = take numPlayers [YellowWorrior,BlueWorrior]
 
@@ -81,7 +82,7 @@ playGame renderFun newActor levels keyPress numPlayers = mdo
 
       accumScore player state prev = max 0 $ prev +
                                      (sum . map killScore . actors) state -
-                                     10 * (length . filter (==player) . shooters) state 
+                                     10 * (length . filter (==player) . shooters) state
         where killScore a = if justDied a && action a == KilledBy player then actorValue a else 0
 
       accumLives player state prev = max 0 $ prev + (sum . map lifeLost . actors) state
@@ -91,11 +92,17 @@ playGame renderFun newActor levels keyPress numPlayers = mdo
   (state,trigLevel) <- switcher (startLevel <$> (pickLevel <$> levelCount <*> levelNoise) <*> levelCount)
   trigLevel' <- delay False trigLevel
   levelCount <- transfer 1 (\win cnt -> if win then cnt+1 else cnt) trigLevel'
-  scores <- forM players $ \t -> transfer 0 (accumScore t) state
-  lives <- forM players $ \t -> transfer numberOfLives (accumLives t) state
-  lives' <- delay (replicate numPlayers numberOfLives) (sequence lives)
+  scores <- memo =<< (sequence <$> forM players (\t -> transfer 0 (accumScore t) state))
+  lives <- memo =<< (sequence <$> forM players (\t -> transfer numberOfLives (accumLives t) state))
+  lives' <- delay (replicate numPlayers numberOfLives) lives
 
-  return (renderFun <$> state <*> levelCount <*> sequence scores <*> sequence lives,all (==0) <$> sequence lives)
+  gameOver <- memo (all (==0) <$> lives)
+
+  return (liftA2 (>>)
+          ((\c s -> when c (storeScore s)) <$> gameOver <*> scores)
+          (renderFun <$> state <*> levelCount <*> scores <*> lives)
+         ,gameOver
+         )
 
 playLevel newActor keyPress level numPlayers lives enemyCount = mdo
   let mkEnemy etype = enemy (newActor etype) (if etype == Worluk then 2 else 1) level bullets
