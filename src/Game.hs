@@ -22,6 +22,7 @@ data LevelState = LevelState
                   { level :: Level
                   , actors :: [Actor]
                   , bullets :: [(ActorType,Vec)]
+                  , shooters :: [ActorType]
                   }
 
 keySet1 = fst
@@ -78,7 +79,9 @@ playGame renderFun newActor levels keyPress numPlayers = mdo
         where findLevel p = pickOne (filter (p.levelName) levels)
               pickOne xs = xs !! (rnd `mod` length xs)
 
-      accumScore player state prev = prev + (sum . map killScore . actors) state
+      accumScore player state prev = max 0 $ prev +
+                                     (sum . map killScore . actors) state -
+                                     10 * (length . filter (==player) . shooters) state 
         where killScore a = if justDied a && action a == KilledBy player then actorValue a else 0
 
       accumLives player state prev = max 0 $ prev + (sum . map lifeLost . actors) state
@@ -95,23 +98,24 @@ playGame renderFun newActor levels keyPress numPlayers = mdo
   return (renderFun <$> state <*> levelCount <*> sequence scores <*> sequence lives,all (==0) <$> sequence lives)
 
 playLevel newActor keyPress level numPlayers lives enemyCount = mdo
-  let mkEnemy etype = enemy (newActor etype) level bullets
+  let mkEnemy etype = enemy (newActor etype) (if etype == Worluk then 2 else 1) level bullets
 
       mkShot c plr = if c && canShoot
                      then (:[]) <$> bullet (actorType plr) (position plr) (facing plr)
                      else return []
         where canShoot = case action plr of
-                Walking -> True
+                Walking  -> True
                 Shooting -> True
-                _ -> False
+                _        -> False
 
-      spawnEnemies = concatMap spawnEnemy
-      spawnEnemy enemy = if isDead enemy && length (animation enemy) == 1 && tick enemy == 0 then
-                           case actorType enemy of
-                             Burwor -> [mkEnemy Garwor <$> (position <$> head players)]
-                             Garwor -> [mkEnemy Thorwor <$> (position <$> head players)]
-                             _      -> []
-                         else []
+      spawnEnemies oldEnemies = concatMap (spawnEnemy (length oldEnemies == 1)) oldEnemies
+      spawnEnemy isLast enemy = if justDied enemy then
+                                    case actorType enemy of
+                                      Burwor  -> [mkEnemy Garwor <$> (position <$> head players)]
+                                      Garwor  -> [mkEnemy Thorwor <$> (position <$> head players)]
+                                      Thorwor -> if isLast then [mkEnemy Worluk <$> (position <$> head players)] else []
+                                      _       -> []
+                                else []
 
       (lw,lh) = levelSize level
       playerInit = take numPlayers [(YellowWorrior,keySet1,1),(BlueWorrior,keySet2,0)]
@@ -135,7 +139,9 @@ playLevel newActor keyPress level numPlayers lives enemyCount = mdo
     bulletSource <- generator (mkShot <$> shoot <*> player)
     return (player,bulletSource)
 
-  bullets <- collection (concat <$> sequence bulletSources) (notHitAnything level <$> enemies')
+  newBullets <- memo (concat <$> sequence bulletSources)
+  bullets <- collection newBullets (notHitAnything level <$> enemies')
+  let shooters = fmap (map fst) . sequence =<< newBullets
 
   initialEnemies <- replicateM enemyCount (mkEnemy Burwor (V (-3*fieldSize) (-3*fieldSize)))
   spawnedEnemies <- generator (sequence <$> (sequence . spawnEnemies =<< enemies'))
@@ -143,14 +149,14 @@ playLevel newActor keyPress level numPlayers lives enemyCount = mdo
   enemies <- collection enemySource (pure (not . null . animation))
   enemies' <- delay [] enemies
 
-  return (LevelState level <$> (liftA2 (++) (sequence players) enemies) <*> bullets
+  return (LevelState level <$> (liftA2 (++) (sequence players) enemies) <*> bullets <*> shooters
          ,null <$> enemies
          )
 
 bullet src pos dir = fmap ((,) src) <$> stateful pos (+3*dirVec dir)
 
-enemy newActor level bullets (V playerX playerY) = mdo
-  let actorInit = (newActor (fromIntegral fieldSize*startPos)) { speed = 4 }
+enemy newActor moveSpeed level bullets (V playerX playerY) = mdo
+  let actorInit = (newActor (fromIntegral fieldSize*startPos)) { speed = moveSpeed, animSpeed = 4 }
       startPos = if abs (startX-playerX `div` fieldSize) < 3 && abs (startY-playerY `div` fieldSize) < 3
                  then V ((startX + lw `div` 2) `mod` lw) ((startY + lh `div` 2) `mod` lh)
                  else V startX startY
@@ -201,7 +207,7 @@ movePlayer level mov shoot enemies plr = case action plr of
           _ | isDead plr -> plr
           Just enemy     -> plr { animation = deathAnimation (skin plr)
                                 , action = KilledBy (actorType enemy)
-                                , speed = 6
+                                , animSpeed = 6
                                 }
           _ | shoot      -> plr { animation = shootAnimation (skin plr)
                                 , action = Shooting
@@ -215,7 +221,7 @@ moveEnemy level dir bs act = animate (mv act')
           Just (killer,_) -> act { animation = deathAnimation (skin act)
                                  , action = KilledBy killer
                                  }
-          Nothing ->  act
+          Nothing -> act
         mv = if isAlive act' then move level dir else id
         hit = find hitBy bs
         V px py = position act
@@ -228,7 +234,7 @@ move lev dir ent = mv ent $ fmap snd . find fst $
                    ,(halfway entDir || legalMove entDir, entDir)
                    ]
   where mv e Nothing  = e
-        mv e (Just d) = e { position = position e + dirVec d
+        mv e (Just d) = e { position = position e + fromIntegral (speed e) * dirVec d
                           , facing = d
                           }
 
@@ -256,7 +262,7 @@ legalMovesAt lev pos = legalMoves lev ! ix pos
   where ix (x,y) = (snd (levelSize lev)-1-y,x)
 
 animate :: Actor -> Actor
-animate ent = let ent' = ent { tick = (tick ent+1) `mod` speed ent }
+animate ent = let ent' = ent { tick = (tick ent+1) `mod` animSpeed ent }
                   adv = if tick ent' == 0 then 1 else 0
                   animation' = drop adv (animation ent') in
   case action ent' of

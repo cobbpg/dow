@@ -28,6 +28,7 @@ data Actor = Actor
              , animation :: [TextureObject]
              , skin :: Skin
              , speed :: Int
+             , animSpeed :: Int
              , tick :: Int
              }
 
@@ -39,7 +40,8 @@ mkActor skins atype pos =
         , action = Walking
         , animation = walkAnimation (skins ! atype)
         , skin = skins ! atype
-        , speed = 2
+        , speed = 1
+        , animSpeed = 2
         , tick = 0
         }
 
