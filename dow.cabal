@@ -8,7 +8,7 @@ Description:
   Dungeons of Wor is a homage to the classic arcade game, Wizard of
   Wor.  It uses the artwork and levels from the Astrocade version, but
   the gameplay mechanics differ from the original in several ways.
-
+  .
   This game is also an experiment in functional reactive programming,
   so it might be a useful resource to anyone interested in this topic.
   It was coded using the simple version of Elerea, which provides
