@@ -84,11 +84,12 @@ readKeys sink = do
   ks1 <- getKey DOWN
   kw1 <- getKey LEFT
   ke1 <- getKey RIGHT
-  kt1 <- getKey RCTRL
+  kt1a <- getKey RCTRL
+  kt1b <- getKey ENTER
   kn2 <- getKey 'W'
   ks2 <- getKey 'S'
   kw2 <- getKey 'A'
   ke2 <- getKey 'D'
   kt2 <- getKey LCTRL
-  sink ((pr kn1, pr ks1, pr kw1, pr ke1, pr kt1),
+  sink ((pr kn1, pr ks1, pr kw1, pr ke1, pr kt1a || pr kt1b),
         (pr kn2, pr ks2, pr kw2, pr ke2, pr kt2))

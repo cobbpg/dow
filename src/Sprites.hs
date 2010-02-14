@@ -1,7 +1,6 @@
 module Sprites
        ( SpriteStore
        , parseSprites
-       , explodeMatrix
        ) where
 
 import Control.Applicative

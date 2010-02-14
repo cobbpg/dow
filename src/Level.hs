@@ -30,6 +30,12 @@ fieldSub :: Vec -> (Int,Int)
 fieldSub (V x y) = (mkSub x, mkSub y)
   where mkSub c = let s = c `mod` fieldSize in if s >= fieldMid then s-fieldSize else s
 
+atFieldMid :: (Int,Int) -> Direction -> Bool
+atFieldMid (sx,sy) dir = 0 == if isVertical dir then sx else sy
+
+halfway :: (Int,Int) -> Direction -> Bool
+halfway (sx,sy) dir = 0 /= if isVertical dir then sy else sx
+
 dirFromInt :: Int -> Direction
 dirFromInt = toEnum . (`mod` 4)
 

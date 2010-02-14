@@ -1,5 +1,5 @@
 Name:                dow
-Version:             0.1.0
+Version:             0.2.0
 Cabal-Version:       >= 1.2
 Synopsis:            Dungeons of Wor
 Category:            game, reactivity, FRP
@@ -35,6 +35,7 @@ Extra-Source-Files:
 
 Data-Files:
   README
+  CHANGES
   data/charset.txt
   data/levels.txt
   data/sprites.txt

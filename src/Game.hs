@@ -11,6 +11,7 @@ import Data.Maybe
 import FRP.Elerea.Experimental.Simple
 
 import Actor
+import GraphUtils
 import HighScore
 import Level
 import Sprites
@@ -193,11 +194,13 @@ notHitAnything lev es (_,pos@(V px py)) =
         hitBy e = isDead e && abs (ex-px) < fieldMid && abs (ey-py) < fieldMid
           where V ex ey = position e
 
-newDir lev rnd act = if not (canMove lev act) then Just pickedLegalDir
-                     else if rnd `mod` 1000 < 992 then Nothing
-                          else Just (toEnum (rnd `mod` 4))
+newDir lev rnd act = if canMove lev act && (isHalfway || rnd `mod` 1000 < 500)
+                     then Nothing
+                     else Just pickedDir
   where legal = legalMovesAt lev (fieldPos (position act))
-        pickedLegalDir = legal !! (rnd `mod` length legal)
+        dirPool = if length legal < 2 then legal else legal \\ [turnBack (facing act)]
+        pickedDir = dirPool !! (rnd `mod` length dirPool)
+        isHalfway = halfway (fieldSub (position act)) (facing act)
 
 movePlayer level mov shoot enemies plr = case action plr of
   Entering dir False -> let startMoving = isJust mov
@@ -236,9 +239,9 @@ moveEnemy level dir bs act = animate (mv act')
 
 move :: Level -> Direction -> Actor -> Actor
 move lev dir ent = mv ent $ fmap snd . find fst $
-                   [(halfway dir || atFieldMid && dirIsLegal, dir)
-                   ,(not atFieldMid && dirIsLegal, dir')
-                   ,(halfway entDir || legalMove entDir, entDir)
+                   [(isHalfway dir || isAtMid && dirIsLegal, dir)
+                   ,(not isAtMid && dirIsLegal, dir')
+                   ,(isHalfway entDir || legalMove entDir, entDir)
                    ]
   where mv e Nothing  = e
         mv e (Just d) = e { position = position e + fromIntegral (speed e) * dirVec d
@@ -248,9 +251,10 @@ move lev dir ent = mv ent $ fmap snd . find fst $
         dirIsLegal = legalMove dir
         legalMove d = d `elem` legalMovesAt lev (fieldPos (position ent))
 
-        (sx,sy) = fieldSub (position ent)
-        atFieldMid = 0 == if isVertical dir then sx else sy
-        halfway d = 0 /= if isVertical d then sy else sx
+        isAtMid = atFieldMid sub dir
+        isHalfway = halfway sub
+
+        sub@(sx,sy) = fieldSub (position ent)
 
         entDir = facing ent
         dir' = case entDir of
