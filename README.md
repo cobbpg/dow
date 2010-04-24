@@ -10,4 +10,4 @@ Controls
  * player two: WASD + left control
  * quit at any time: escape
 
-[1] http://en.wikipedia.org/wiki/Wizard_of_Wor
+[1]: http://en.wikipedia.org/wiki/Wizard_of_Wor
