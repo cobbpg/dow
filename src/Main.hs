@@ -4,7 +4,7 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Fix
 import Data.IORef
-import FRP.Elerea.Experimental.Simple
+import FRP.Elerea.Simple
 import Graphics.UI.GLFW
 import Graphics.Rendering.OpenGL
 

@@ -7,7 +7,7 @@ import Control.Monad
 import Control.Monad.Fix
 import Data.Maybe
 import Data.Traversable hiding (sequence)
-import FRP.Elerea.Experimental.Simple
+import FRP.Elerea.Simple
 
 infix 2 -->
 

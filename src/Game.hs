@@ -8,7 +8,7 @@ import Control.Monad.Fix
 import Data.Array
 import Data.List
 import Data.Maybe
-import FRP.Elerea.Experimental.Simple
+import FRP.Elerea.Simple
 
 import Actor
 import GraphUtils

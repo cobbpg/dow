@@ -1,3 +1,6 @@
+0.2.1 - 100718
+* adjusted for version 2 of the library
+
 0.2.0 - 100424
 * sanitised enemy movement
 * added enter as an alternative fire key
