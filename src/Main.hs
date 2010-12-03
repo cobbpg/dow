@@ -4,6 +4,7 @@ import Control.Applicative
 import Control.Monad
 import Control.Monad.Fix
 import Data.IORef
+import Data.List
 import FRP.Elerea.Simple
 import Graphics.UI.GLFW
 import Graphics.Rendering.OpenGL
@@ -65,14 +66,7 @@ main = do
 
   closeWindow
 
-loadLevels file = do
-  dat <- lines <$> readFile file
-  let levels = parseLevels dat
-      parseLevels dat = case parseLevel dat of
-        Left _ -> []
-        Right (l,dat') -> l : parseLevels dat'
-
-  return levels
+loadLevels file = unfoldr parseLevel . lines <$> readFile file
 
 loadSprites file = do
   dat <- lines <$> readFile file

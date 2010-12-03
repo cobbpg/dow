@@ -1,6 +1,6 @@
 module Level where
 
-import Control.Monad.Error
+import Control.Monad
 import Data.Array
 import Data.List
 
@@ -53,7 +53,7 @@ isVertical North = True
 isVertical South = True
 isVertical _     = False
 
-parseLevel :: [String] -> Either String (Level,[String])
+parseLevel :: [String] -> Maybe (Level,[String])
 parseLevel lines = do
   let lines' = dropWhile null lines
       nameLine = head lines'
@@ -81,8 +81,9 @@ parseLevel lines = do
          (d,f) <- [(North,head),(South,last),(West,map head),(East,map last)],
          i <- findIndices (`elem` chars) (f lines)]
 
-  when (null lines' || length mazeLines < 3) $ fail "Nothing to parse"
-  when (head nameLine /= '"') $ fail "Missing level name"
+  guard $ not (null lines')
+  guard $ length mazeLines > 2
+  guard $ head nameLine == '"'
 
   return (Level { levelName = takeWhile (/= '"') (tail nameLine)
                 , levelSize = (width,height)
