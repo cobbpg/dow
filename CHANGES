@@ -1,3 +1,6 @@
+0.2.3 - 110402
+* adjusted for version 2.2.0 of the library
+
 0.2.2 - 101203
 * removed mtl dependency (which also fixed a crash)
 
