@@ -1,5 +1,5 @@
 Name:                dow
-Version:             0.2.3
+Version:             0.2.4
 Cabal-Version:       >= 1.2
 Synopsis:            Dungeons of Wor
 Category:            game, reactivity, FRP
@@ -43,5 +43,5 @@ Data-Files:
 Executable dow
   HS-Source-Dirs:    src
   Main-IS:           Main.hs
-  Build-Depends:     base >= 4 && < 5, elerea >= 2.0.0, OpenGL >= 2.4, GLFW >= 0.4, array, directory
+  Build-Depends:     base >= 4 && < 5, elerea >= 2.5.0, OpenGL >= 2.4, GLFW >= 0.4, array, directory, mersenne-random
   GHC-Options:       -O2 -fno-warn-deprecated-flags

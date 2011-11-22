@@ -8,6 +8,7 @@ import Control.Monad.Fix
 import Data.Maybe
 import Data.Traversable hiding (sequence)
 import FRP.Elerea.Simple
+import System.Random.Mersenne
 
 infix 2 -->
 
@@ -34,3 +35,9 @@ switcher gen = mdo
   return (fst =<< pw,trig)
 
 toMaybe b s = if b then Just <$> s else pure Nothing
+
+noise :: MTRandom a => SignalGen (Signal a)
+noise = effectful randomIO
+
+getRandom :: MTRandom a => SignalGen a
+getRandom = execute randomIO
