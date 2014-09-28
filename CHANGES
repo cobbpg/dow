@@ -1,3 +1,6 @@
+0.2.5 - 140928
+* fixed compilation with GLFW-0.5.2.*
+
 0.2.4 - 111122
 * adjusted for version 2.5.0 of the library
 * moved random number generator into the example

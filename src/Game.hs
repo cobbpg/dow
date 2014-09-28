@@ -47,7 +47,7 @@ game highScore storeScore (renderGame,renderMenu) closeAction newActor levels ke
 
       mkGame 0 = playGame storeScore renderGame newActor levels keyPress 1
       mkGame 1 = playGame storeScore renderGame newActor levels keyPress 2
-      mkGame _ = return (pure closeAction,pure True)
+      mkGame _ = return (pure (void closeAction),pure True)
 
   keys <- memo (keySet1 <$> keyPress)
   (output,_) <- switcher . flip fmap highScore $ \score -> do

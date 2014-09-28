@@ -36,7 +36,7 @@ main = do
   windowSizeCallback $= setViewport aspectRatio
 
   closed <- newIORef False
-  let closeAction = writeIORef closed True
+  let closeAction = writeIORef closed True >> return True
   windowCloseCallback $= closeAction
 
   clearColor $= Color4 0 0 0 1
