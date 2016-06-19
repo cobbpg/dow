@@ -1,6 +1,6 @@
 Name:                dow
 Version:             0.2.6
-Cabal-Version:       >= 1.2
+Cabal-Version:       >= 1.6
 Synopsis:            Dungeons of Wor
 Category:            game, reactivity, FRP
 Description:

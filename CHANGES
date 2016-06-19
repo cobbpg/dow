@@ -1,3 +1,6 @@
+0.2.6 - 160619
+* fixed compilation with elerea-2.9.*
+
 0.2.5 - 140928
 * fixed compilation with GLFW-0.5.2.*
 
