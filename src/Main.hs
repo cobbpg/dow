@@ -46,15 +46,18 @@ main = do
   textureFunction $= Combine4
 
   let noKeys = (False,False,False,False,False)
-  (keyPress,keySink) <- external (noKeys,noKeys)
-  (highScore,highScoreSink) <- external =<< loadScore
+  (keyPressGen,keySink) <- external (noKeys,noKeys)
+  (highScoreGen,highScoreSink) <- external =<< loadScore
   let storeScore scores = do
         oldScore <- loadScore
         let newScore = maximum (oldScore:scores)
         saveScore newScore
         highScoreSink newScore
 
-  renderAction <- start $ game highScore storeScore render closeAction newActor levels keyPress
+  renderAction <- start $ do
+    keyPress <- keyPressGen
+    highScore <- highScoreGen
+    game highScore storeScore render closeAction newActor levels keyPress
 
   fix $ \loop -> do
     readKeys keySink
